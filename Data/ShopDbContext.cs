@@ -3,7 +3,13 @@ using Rookie.Models;
 namespace Rookie.Data;
 public class ShopDbContext(DbContextOptions<ShopDbContext> options) : DbContext(options) {
  public DbSet<Product> Products => Set<Product>();
+ public DbSet<Category> Categories => Set<Category>();
+ public DbSet<Customer> Customers => Set<Customer>();
+ public DbSet<Order> Orders => Set<Order>();
+ public DbSet<Purchase> Purchases => Set<Purchase>();
  protected override void OnModelCreating(ModelBuilder m) {
+ m.Entity<Category>().HasIndex(c => c.Name).IsUnique();
+ m.Entity<Category>().HasData(new Category {Id=1,Name="Bánh kem"}, new Category {Id=2,Name="Bánh ngọt"}, new Category {Id=3,Name="Bánh tart"}, new Category {Id=4,Name="Cookies"});
  m.Entity<Product>().HasData(
  new Product {Id=1,Name="Strawberry cloud",Description="Bông lan vani · kem tươi · dâu ngọt",Category="Bánh kem",Price=285000,IsBestSeller=true,Image="photo-1464305795204-6f5bbfc7fb81"},
  new Product {Id=2,Name="Butter, baby!",Description="Ngàn lớp giòn thơm, bơ Pháp nguyên chất",Category="Bánh ngọt",Price=45000,IsBestSeller=true,Image="photo-1555507036-ab1f4038808a"},

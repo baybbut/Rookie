@@ -1,0 +1,23 @@
+@{
+ var authed = User.Identity?.IsAuthenticated == true;
+ var nav = ViewData["Nav"] as string;
+ string Cls(string key) => nav == key ? "active" : "";
+}
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="robots" content="noindex"/><title>@(ViewData["Title"] ?? "Quản trị") — Rookie Admin</title><link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/><link rel="stylesheet" href="~/css/admin.css" asp-append-version="true"/></head><body class="admin @(authed ? "with-side" : "")">
+@if (authed) {
+<aside class="sidebar">
+ <a href="/admin" class="logo" aria-label="Rookie admin">rookie<span>✳</span><small>ADMIN · QUẢN TRỊ TIỆM BÁNH</small></a>
+ <nav aria-label="Chức năng quản trị">
+  <a class="@Cls("dashboard")" href="/admin" title="Trang chủ"><i>⌂</i><span>Trang chủ</span></a>
+  <a class="@Cls("products")" href="/admin/categories" title="Quản lý sản phẩm"><i>❖</i><span>Quản lý sản phẩm</span></a>
+  <a class="@Cls("customers")" href="/admin/customers" title="Quản lý tài khoản khách hàng"><i>☺</i><span>Quản lý tài khoản khách hàng</span></a>
+  <a class="@Cls("orders")" href="/admin/orders" title="Quản lý đơn hàng"><i>✉</i><span>Quản lý đơn hàng</span></a>
+  <a class="@Cls("purchases")" href="/admin/purchases" title="Quản lý nhập hàng"><i>⇩</i><span>Quản lý nhập hàng</span></a>
+  <a class="@Cls("reports")" href="/admin/reports" title="Báo cáo và thống kê"><i>▤</i><span>Báo cáo &amp; thống kê</span></a>
+ </nav>
+ <div class="side-foot"><form method="post" asp-controller="Admin" asp-action="Logout"><button class="ghost" title="Đăng xuất">⏻<span> Đăng xuất</span></button></form></div>
+</aside>
+}
+<main class="admin-main">@RenderBody()</main>
+</body></html>

@@ -1,0 +1,16 @@
+@model Product
+@{ var isNew = Model.Id == 0; ViewData["Title"] = isNew ? "Thêm bánh" : "Sửa bánh"; ViewData["Nav"] = "products"; }
+<div class="admin-head"><div><div class="eyebrow">@(isNew ? "NEW PRODUCT" : "EDIT PRODUCT")</div><h1>@(isNew ? "Thêm bánh mới" : Model.Name)</h1></div><a class="ghost" asp-action="Products">← Quay lại</a></div>
+<form class="admin-form" method="post" asp-action="@(isNew ? "Create" : "Edit")" asp-route-id="@(isNew ? null : Model.Id)">
+ <div asp-validation-summary="ModelOnly" class="alert"></div>
+ <label>Tên bánh<input asp-for="Name" maxlength="80"/><span asp-validation-for="Name" class="field-error"></span></label>
+ <label>Mô tả ngắn<input asp-for="Description" maxlength="200"/><span asp-validation-for="Description" class="field-error"></span></label>
+ <div class="row">
+  <label>Danh mục<select asp-for="Category"><option value="">— Chọn danh mục —</option>@foreach (var c in (List<string>)ViewBag.Categories) {<option value="@c" selected="@(c == Model.Category)">@c</option>}</select><span asp-validation-for="Category" class="field-error"></span></label>
+  <label>Giá (₫)<input asp-for="Price" type="number" step="1000" min="1000"/><span asp-validation-for="Price" class="field-error"></span></label>
+ </div>
+ <label>Mã ảnh Unsplash<input asp-for="Image" maxlength="120" placeholder="photo-1464305795204-6f5bbfc7fb81"/><small>Chỉ phần ID sau images.unsplash.com/, ví dụ photo-1464305795204-6f5bbfc7fb81.</small><span asp-validation-for="Image" class="field-error"></span></label>
+ @if (!string.IsNullOrWhiteSpace(Model.Image)) {<img class="preview" src="https://images.unsplash.com/@(Model.Image)?auto=format&fit=crop&w=500&q=70" alt="Xem trước ảnh"/>}
+ <div class="checks"><label class="check"><input asp-for="IsBestSeller" type="checkbox"/> Bán chạy nhất</label><label class="check"><input asp-for="IsNew" type="checkbox"/> Bánh mới ra lò</label></div>
+ <div class="form-actions"><button class="btn" type="submit">@(isNew ? "Thêm bánh" : "Lưu thay đổi") <span>↗</span></button></div>
+</form>

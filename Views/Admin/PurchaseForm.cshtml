@@ -1,0 +1,14 @@
+@{ ViewData["Title"] = "Tạo phiếu nhập"; ViewData["Nav"] = "purchases"; var rows = ViewBag.Rows as List<PurchaseRow> ?? []; }
+<div class="admin-head"><div><div class="eyebrow">NEW PURCHASE</div><h1>Tạo phiếu nhập</h1></div><a class="ghost" asp-action="Purchases">← Quay lại</a></div>
+<form class="admin-form wide-form" method="post" asp-action="CreatePurchase">
+ @if (ViewBag.Error is string err) {<p class="alert">@err</p>}
+ <div class="row"><label>Nhà cung cấp<input name="supplier" maxlength="80" value="@ViewBag.Supplier" required/></label><label>Ghi chú<input name="note" maxlength="200" value="@ViewBag.Note"/></label></div>
+ <fieldset><legend>Mặt hàng nhập (để trống các dòng không dùng)</legend>
+  <div class="prow head"><span>Tên hàng</span><span>Đơn vị</span><span>Số lượng</span><span>Đơn giá (₫)</span></div>
+  @for (var i = 0; i < 6; i++) {
+   var r = i < rows.Count ? rows[i] : null;
+   <div class="prow"><input name="rows[@i].ItemName" maxlength="80" value="@r?.ItemName" aria-label="Tên hàng @(i + 1)"/><input name="rows[@i].Unit" maxlength="20" value="@r?.Unit" placeholder="kg" aria-label="Đơn vị"/><input name="rows[@i].Quantity" type="number" min="0" step="any" value="@(r is null || r.Quantity == 0 ? "" : r.Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture))" aria-label="Số lượng"/><input name="rows[@i].UnitCost" type="number" min="0" step="any" value="@(r is null || r.UnitCost == 0 ? "" : r.UnitCost.ToString(System.Globalization.CultureInfo.InvariantCulture))" aria-label="Đơn giá"/></div>
+  }
+ </fieldset>
+ <div class="form-actions"><button class="btn" type="submit">Lưu phiếu nhập <span>↗</span></button></div>
+</form>
