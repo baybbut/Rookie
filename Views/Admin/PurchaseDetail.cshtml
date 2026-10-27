@@ -1,12 +1,21 @@
 @model Purchase
-@{ ViewData["Title"] = "Phiếu nhập #" + Model.Id; ViewData["Nav"] = "purchases"; }
-<div class="admin-head"><div><div class="eyebrow">PURCHASE</div><h1>Phiếu nhập #@Model.Id</h1></div><a class="ghost" asp-action="Purchases">← Quay lại</a></div>
+@{ ViewData["Title"] = "Phiếu nhập #" + Model.Id; ViewData["Nav"] = "warehouse"; }
+<div class="admin-head"><div><div class="eyebrow">PURCHASE</div><h1>Phiếu nhập #@Model.Id <span class="st @Fmt.PurchaseClass(Model.Status)">@Model.Status</span></h1></div><a class="ghost" asp-action="Purchases">← Quay lại</a></div>
 @if (TempData["Msg"] is string msg) {<p class="notice" role="status">@msg</p>}
-<p class="hint"><b>@Model.Supplier</b> · @Fmt.Date(Model.CreatedAt)@(string.IsNullOrEmpty(Model.Note) ? "" : " · " + Model.Note)</p>
+<p class="hint"><b>@Model.Supplier</b> · ngày lập <b>@Fmt.Day(Model.CreatedAt)</b>@(Model.CreatedBy is null ? "" : " · lập bởi " + Model.CreatedBy)@(string.IsNullOrEmpty(Model.Note) ? "" : " · " + Model.Note)</p>
+@if (Model.Status == PurchaseStatus.Pending) {
+ <section class="panel wide"><h2>Xác nhận nhập kho</h2>
+  <p class="hint">Phiếu chưa được cộng vào tồn kho. Kiểm đủ số bánh từ xưởng rồi bấm xác nhận.</p>
+  <div class="head-actions">
+   <form method="post" asp-action="ReceivePurchase" asp-route-id="@Model.Id" data-confirm="Xác nhận nhập kho phiếu #@Model.Id? @Model.Items.Sum(i => i.Quantity) bánh sẽ được cộng vào tồn kho."><button class="btn">Xác nhận nhập kho <span>✓</span></button></form>
+   <form method="post" asp-action="CancelPurchase" asp-route-id="@Model.Id" data-confirm="Hủy phiếu nhập #@Model.Id? Không thể mở lại."><button class="ghost danger">Hủy phiếu</button></form>
+  </div>
+ </section>
+} else if (Model.Status == PurchaseStatus.Received) {<p class="hint">✓ Đã nhập kho bởi <b>@Model.ReceivedBy</b>@(Model.ReceivedAt is DateTime at ? " lúc " + Fmt.Date(at) : "").</p>}
 <div class="table-wrap"><table>
- <thead><tr><th>Mặt hàng</th><th class="num">Số lượng</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th></tr></thead>
+ <thead><tr><th>Bánh</th><th class="num">Số lượng</th><th class="num">Đơn giá nhập</th><th class="num">Thành tiền</th></tr></thead>
  <tbody>
- @foreach (var i in Model.Items) {<tr><td>@i.ItemName</td><td class="num">@i.Quantity.ToString("0.##") @i.Unit</td><td class="num">@Fmt.Vnd(i.UnitCost)</td><td class="num">@Fmt.Vnd(i.Subtotal)</td></tr>}
+ @foreach (var i in Model.Items) {<tr><td>@i.ItemName</td><td class="num">@i.Quantity @i.Unit</td><td class="num">@Fmt.Vnd(i.UnitCost) / @i.Unit</td><td class="num">@Fmt.Vnd(i.Subtotal)</td></tr>}
  <tr class="sum"><td colspan="3" class="num"><b>Tổng cộng</b></td><td class="num"><b>@Fmt.Vnd(Model.Total)</b></td></tr>
  </tbody>
 </table></div>

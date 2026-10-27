@@ -1,8 +1,8 @@
 @model List<DayPoint>
-@{ var max = Math.Max(1, Model.Max(d => d.Revenue)); var step = Model.Count > 31 ? 10 : Model.Count > 10 ? 5 : 1; }
+@{ var max = Math.Max(1, Model.Max(d => d.Revenue)); var step = Model.Count > 31 ? 10 : Model.Count > 12 ? 5 : Model.Count > 7 ? 2 : 1; }
 <div class="chart" role="img" aria-label="Biểu đồ doanh thu theo ngày">
  @for (var i = 0; i < Model.Count; i++) {
-  var d = Model[i];
-  <div class="col" title="@d.Day.ToString("dd/MM") · @Fmt.Vnd(d.Revenue) · @d.Orders đơn"><i style="height:@((int)(d.Revenue * 100 / max))%"></i><span>@(i % step == 0 ? d.Day.ToString("dd/MM") : "")</span></div>
+  var d = Model[i]; var lbl = d.Label ?? Fmt.Day(d.Day);
+  <div class="col" title="@lbl · @Fmt.Vnd(d.Revenue) · @d.Orders đơn"><i style="height:@((int)(d.Revenue * 100 / max))%"></i><span>@(i % step == 0 ? (lbl.StartsWith("Tháng ") ? lbl[6..] : lbl) : "")</span></div>
  }
 </div>

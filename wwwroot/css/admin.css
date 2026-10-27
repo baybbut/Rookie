@@ -1,4 +1,5 @@
-﻿body.admin{background:var(--cream)}
+﻿@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&display=swap');
+body.admin{background:var(--cream)}
 .admin-bar{display:flex;align-items:center;gap:28px;padding:18px 5%;background:#f4e8df}
 .admin-bar .logo{font-size:34px}.admin-bar nav{margin-right:auto;gap:24px}.admin-bar form{margin:0}
 .admin-main{max-width:1180px;margin:0 auto;padding:40px 5% 80px}
@@ -8,9 +9,9 @@
 .ghost:hover{background:#efe6d8}.ghost.danger{color:#ad544f;border-color:#e2bcb8}.ghost.danger:hover{background:#f6dcd9}
 .notice{background:var(--mint);padding:12px 16px;border-radius:4px;margin-bottom:20px;font-size:12px}
 .alert{background:#f6dcd9;color:#7a2e2a;padding:12px 16px;border-radius:4px;font-size:12px;line-height:1.6;margin:0 0 16px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:28px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}.stat{min-width:0}
 .stat{background:#eee5d8;padding:18px 20px;border-radius:4px}.stat:nth-child(2){background:#ead6d4}.stat:nth-child(3){background:#dfe7d6}
-.stat small{display:block;font-size:11px;color:#6d7062}.stat b{font:700 34px 'Playfair Display',Georgia,serif;display:block;margin-top:8px}
+.stat small{display:block;font-size:11px;color:#6d7062}.stat b{font:600 24px/1.25 'Poppins',sans-serif;display:block;margin-top:8px;overflow-wrap:anywhere}
 .admin-search{display:flex;gap:10px;margin-bottom:16px}.admin-search input{flex:1;max-width:340px;border:0;border-bottom:1px solid #bbbcb1;background:none;padding:9px 0;font-size:12px;outline:none}
 .table-wrap{overflow-x:auto;background:#fffdf6;border-radius:6px;border:1px solid #e7e0d0}
 table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#6d7062;padding:14px 16px;border-bottom:1px solid #e7e0d0}
@@ -58,3 +59,28 @@ fieldset{border:1px solid #e7e0d0;border-radius:6px;padding:16px 18px;margin:0 0
 @media(max-width:700px){body.with-side{grid-template-columns:64px 1fr}.sidebar{padding:16px 8px;align-items:center;gap:16px}.sidebar .logo{font-size:0;padding:0}.sidebar .logo span{font-size:26px;margin:0}.sidebar .logo small{display:none}.sidebar nav a{justify-content:center;padding:12px 8px}.sidebar nav a.sub{margin-left:0;padding:12px 8px}.sidebar nav a span,.side-foot a span,.side-foot button span{display:none}.sidebar nav i{width:auto;font-size:18px}.side-foot{padding:0;align-items:center}.side-foot .ghost{width:40px;height:40px;padding:0;border-radius:50%}.admin-main{padding:24px 14px 60px}.prow{grid-template-columns:1fr 1fr}.prow.head{display:none}.head-actions{flex-wrap:wrap}}
 .add-cat{padding:0;margin-bottom:12px}.add-cat input{max-width:320px}td .rename{padding:0}.ghost:disabled{opacity:.4;cursor:not-allowed}
 tr.is-hidden td{background:#f6f1e6;color:#8a8472}.rename .st{white-space:nowrap}
+
+/* ---- bộ lọc, nhãn, người dùng đang đăng nhập, in báo cáo ---- */
+.filter-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;margin:0 0 18px}.filter-bar.flat{margin:0}
+.filter-bar label{display:flex;flex-direction:column;gap:6px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#6d7062;min-width:120px}.filter-bar label.grow{flex:1;min-width:220px}
+.filter-bar input,.filter-bar select{border:1px solid #cfcfc0;border-radius:4px;background:#fffdf6;padding:9px 12px;font:inherit;font-size:12px;letter-spacing:0;text-transform:none;font-weight:400;color:var(--ink);outline:none;min-height:38px}
+.filter-bar input:focus,.filter-bar select:focus{border-color:var(--ink)}
+.filter-actions{display:flex;gap:8px;align-items:center;min-height:38px}.ghost.on{background:var(--ink);color:var(--cream);border-color:var(--ink);cursor:pointer}
+.tag.plain{background:#eee5d8}.st-conf{background:#e3dcf1}.low{color:#ad544f}b.low{font-weight:700}.code{font-style:normal;font-size:10px;color:#787b70;margin-left:4px}
+.chip-line{font-size:12px;margin:0 0 14px}.chip{display:inline-flex;align-items:center;gap:8px;background:var(--pink);border-radius:20px;padding:5px 6px 5px 12px;margin-left:6px}.chip a{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#fffdf6;font-size:10px}
+.qty-total{font-size:12px;margin:14px 0 0}.qty-total b{font-size:15px}.period{margin:8px 0 0;font-size:12px;color:#6d7062}
+.prow select{margin:0!important;padding:10px 12px!important;width:100%;border:1px solid #cfcfc0;border-radius:4px;background:#fffdf6;font-size:12px}.prow .unit{align-self:center;font-size:12px;color:#6d7062}
+.table-wrap.scroll{max-height:420px;overflow:auto}tr.zero td{color:#a09c8c}td.wbar{width:45%}td.wbar .bar{max-width:320px}
+button.btn{cursor:pointer}.status-form{margin-bottom:10px}.status-form .btn{font-size:12px}
+.side-foot .who{display:flex;gap:10px;align-items:center;padding:12px;border-radius:10px;background:#fffdf6;border:1px solid #e6d9cb;font-weight:400}
+.who .av{flex:none;width:36px;height:36px;border-radius:50%;background:var(--ink);color:var(--cream);display:grid;place-items:center;font:600 15px 'Poppins',sans-serif}
+.who div{min-width:0;display:flex;flex-direction:column;gap:2px}.who small{font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:#787b70}.who strong{font-size:12px;line-height:1.3;word-break:break-word}.who em{font-style:normal;font-size:11px;color:#6d7062}
+@media(max-width:700px){.side-foot .who{padding:0;background:none;border:0}.who div{display:none}}
+@media print{body.with-side{display:block}.sidebar,.head-actions,.filter-bar,.tabs,.admin-head .head-actions{display:none!important}.admin-main{max-width:none;padding:0}body.admin{background:#fff}.panel,.table-wrap,.stat{break-inside:avoid}.table-wrap.scroll{max-height:none;overflow:visible}.chart .col span{font-size:7px}}
+
+
+
+
+/* Màn hình hẹp: menu không còn icon nên xếp ngang phía trên thay vì thu thành cột icon. */
+@media(max-width:700px){body.with-side{display:block}.sidebar{position:static;height:auto;flex-direction:column;align-items:stretch;padding:16px 12px;gap:12px;border-right:0;border-bottom:1px solid #e6d9cb}.sidebar .logo{font-size:36px;padding:0 8px}.sidebar .logo small{display:block}.sidebar nav{flex-direction:row;flex-wrap:wrap;gap:6px}.sidebar nav a{padding:8px 12px;justify-content:flex-start}.sidebar nav a span,.side-foot button span{display:inline}.side-foot{flex-direction:row;justify-content:space-between;align-items:center;padding:0 8px}.side-foot .ghost{width:auto;height:auto;padding:9px 16px;border-radius:30px}.who div{display:flex}.side-foot .who{padding:8px 12px;background:#fffdf6;border:1px solid #e6d9cb}.admin-main{padding:24px 14px 60px}}
+

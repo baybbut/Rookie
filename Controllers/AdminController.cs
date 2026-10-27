@@ -1,6 +1,4 @@
 ﻿using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -10,22 +8,24 @@ using Rookie.Data;
 using Rookie.Models;
 namespace Rookie.Controllers;
 [Authorize, Route("admin")]
-public partial class AdminController(ShopDbContext db, IConfiguration config, IWebHostEnvironment env) : Controller {
- // Mật khẩu lấy từ cấu hình Admin:Password; riêng môi trường Development có mặc định "admin".
- string? AdminPassword => config["Admin:Password"] ?? (env.IsDevelopment() ? "admin" : null);
+public partial class AdminController(ShopDbContext db) : Controller {
+ // Tên nhân viên đang đăng nhập, ghi lại trên đơn/phiếu mình xử lý.
+ string Me => User.Identity?.Name ?? "—";
 
  [AllowAnonymous, HttpGet("login")]
- public IActionResult Login(string? returnUrl) { ViewBag.ReturnUrl = returnUrl; ViewBag.Disabled = AdminPassword is null; return View(); }
+ public async Task<IActionResult> Login(string? returnUrl) { ViewBag.ReturnUrl = returnUrl; ViewBag.Disabled = !await db.Staffs.AnyAsync(); return View(); }
 
  [AllowAnonymous, HttpPost("login"), ValidateAntiForgeryToken]
- public async Task<IActionResult> Login(string? password, string? returnUrl) {
-  var expected = AdminPassword;
-  if (expected is not null && CryptographicOperations.FixedTimeEquals(SHA256.HashData(Encoding.UTF8.GetBytes(password ?? "")), SHA256.HashData(Encoding.UTF8.GetBytes(expected)))) {
-   var id = new ClaimsIdentity([new Claim(ClaimTypes.Name, "admin")], CookieAuthenticationDefaults.AuthenticationScheme);
+ public async Task<IActionResult> Login(string? username, string? password, string? returnUrl) {
+  username = username?.Trim().ToLowerInvariant();
+  var s = string.IsNullOrEmpty(username) ? null : await db.Staffs.FirstOrDefaultAsync(x => x.Username == username);
+  if (s is not null && !s.IsLocked && Pw.Verify(password ?? "", s.PasswordHash)) {
+   var id = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, s.Id.ToString()), new Claim(ClaimTypes.Name, s.FullName), new Claim(ClaimTypes.Role, s.Role), new Claim("username", s.Username)], CookieAuthenticationDefaults.AuthenticationScheme);
    await HttpContext.SignInAsync(new ClaimsPrincipal(id));
    return Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl) : RedirectToAction(nameof(Index));
   }
-  ViewBag.ReturnUrl = returnUrl; ViewBag.Disabled = expected is null; ViewBag.Error = expected is null ? null : "Sai mật khẩu, thử lại nhé!";
+  ViewBag.ReturnUrl = returnUrl; ViewBag.Disabled = !await db.Staffs.AnyAsync(); ViewBag.Username = username;
+  ViewBag.Error = s is not null && s.IsLocked && Pw.Verify(password ?? "", s.PasswordHash) ? "Tài khoản này đã bị khóa." : "Sai tên đăng nhập hoặc mật khẩu, thử lại nhé!";
   return View();
  }
 
@@ -35,7 +35,7 @@ public partial class AdminController(ShopDbContext db, IConfiguration config, IW
  [HttpGet("")]
  public async Task<IActionResult> Index() {
   var orders = await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).ToListAsync();
-  var purchases = await db.Purchases.AsNoTracking().Include(p => p.Items).ToListAsync();
+  var purchases = await db.Purchases.AsNoTracking().Include(p => p.Items).Where(p => p.Status == PurchaseStatus.Received).ToListAsync();
   var today = DateTime.Today; var month = new DateTime(today.Year, today.Month, 1);
   var live = orders.Where(o => o.Status != OrderStatus.Cancelled).ToList();
   return View(new DashboardVm {
@@ -43,7 +43,7 @@ public partial class AdminController(ShopDbContext db, IConfiguration config, IW
    RevenueMonth = live.Where(o => o.CreatedAt >= month).Sum(o => o.Total),
    PurchaseMonth = purchases.Where(p => p.CreatedAt >= month).Sum(p => p.Total),
    NewOrders = orders.Count(o => o.Status == OrderStatus.New),
-   OpenOrders = orders.Count(o => o.Status is OrderStatus.New or OrderStatus.Preparing or OrderStatus.Shipping),
+   OpenOrders = orders.Count(o => o.Status is OrderStatus.New or OrderStatus.Confirmed or OrderStatus.Preparing or OrderStatus.Shipping),
    Customers = await db.Customers.CountAsync(), Products = await db.Products.CountAsync(),
    Days = Series(live, today.AddDays(-6), 7),
    Recent = orders.OrderByDescending(o => o.CreatedAt).Take(6).ToList(),
@@ -59,12 +59,15 @@ public partial class AdminController(ShopDbContext db, IConfiguration config, IW
  static List<NamedValue> TopProducts(IEnumerable<Order> live, int take) =>
   live.SelectMany(o => o.Items).GroupBy(i => i.ProductName).Select(g => new NamedValue(g.Key, g.Sum(i => i.Subtotal), g.Sum(i => i.Quantity))).OrderByDescending(n => n.Value).Take(take).ToList();
 
+ static bool Has(string? hay, string? term) => string.IsNullOrWhiteSpace(term) || (hay ?? "").Contains(term.Trim(), StringComparison.CurrentCultureIgnoreCase);
+
  [HttpGet("products")]
- public async Task<IActionResult> Products(string? q) {
-  var all = await db.Products.AsNoTracking().OrderBy(p => p.Id).ToListAsync();
-  ViewBag.Q = q;
-  var term = q?.Trim();
-  return View(string.IsNullOrEmpty(term) ? all : all.Where(p => $"{p.Name} {p.Category}".Contains(term, StringComparison.CurrentCultureIgnoreCase)).ToList());
+ public async Task<IActionResult> Products(string? code, string? name, string? category, string? status) {
+  IEnumerable<Product> r = await db.Products.AsNoTracking().OrderBy(p => p.Id).ToListAsync();
+  r = r.Where(p => Has(p.Code, code) && Has(p.Name, name) && (string.IsNullOrEmpty(category) || p.Category == category) && (string.IsNullOrEmpty(status) || (status == "best" ? p.IsBestSeller : status == "new" ? p.IsNew : !p.IsBestSeller && !p.IsNew)));
+  ViewBag.Code = code; ViewBag.Name = name; ViewBag.Category = category; ViewBag.Status = status;
+  await LoadCategories();
+  return View(r.ToList());
  }
 
  // ---- Danh mục ----
@@ -123,11 +126,11 @@ public partial class AdminController(ShopDbContext db, IConfiguration config, IW
  public async Task<IActionResult> Create() { await LoadCategories(); return View("Form", new Product()); }
 
  [HttpPost("create"), ValidateAntiForgeryToken]
- public async Task<IActionResult> Create([Bind("Name,Description,Image,Category,Price,IsNew,IsBestSeller")] Product p) {
-  await CheckCategory(p);
+ public async Task<IActionResult> Create([Bind("Code,Name,Description,Image,Category,Unit,Price")] Product p, string? status) {
+  await CheckProduct(p, 0); ProductStatus.Apply(p, status);
   if (!ModelState.IsValid) { await LoadCategories(); return View("Form", p); }
   db.Products.Add(p); await db.SaveChangesAsync();
-  TempData["Msg"] = $"Đã thêm “{p.Name}”.";
+  TempData["Msg"] = $"Đã thêm “{p.Name}” (mã {p.Code}).";
   return RedirectToAction(nameof(Products));
  }
 
@@ -139,12 +142,12 @@ public partial class AdminController(ShopDbContext db, IConfiguration config, IW
  }
 
  [HttpPost("edit/{id:int}"), ValidateAntiForgeryToken]
- public async Task<IActionResult> Edit(int id, [Bind("Name,Description,Image,Category,Price,IsNew,IsBestSeller")] Product input) {
+ public async Task<IActionResult> Edit(int id, [Bind("Code,Name,Description,Image,Category,Unit,Price")] Product input, string? status) {
   var p = await db.Products.FindAsync(id);
   if (p is null) return NotFound();
-  await CheckCategory(input);
+  await CheckProduct(input, id); ProductStatus.Apply(input, status);
   if (!ModelState.IsValid) { input.Id = id; await LoadCategories(); return View("Form", input); }
-  (p.Name, p.Description, p.Image, p.Category, p.Price, p.IsNew, p.IsBestSeller) = (input.Name, input.Description, input.Image, input.Category, input.Price, input.IsNew, input.IsBestSeller);
+  (p.Code, p.Name, p.Description, p.Image, p.Category, p.Unit, p.Price, p.IsNew, p.IsBestSeller) = (input.Code, input.Name, input.Description, input.Image, input.Category, input.Unit, input.Price, input.IsNew, input.IsBestSeller);
   await db.SaveChangesAsync();
   TempData["Msg"] = $"Đã cập nhật “{p.Name}”.";
   return RedirectToAction(nameof(Products));
@@ -161,8 +164,12 @@ public partial class AdminController(ShopDbContext db, IConfiguration config, IW
 
  async Task LoadCategories() => ViewBag.Categories = await db.Categories.AsNoTracking().OrderBy(c => c.Name).Select(c => c.Name).ToListAsync();
 
- async Task CheckCategory(Product p) {
+ async Task CheckProduct(Product p, int selfId) {
   if (!string.IsNullOrEmpty(p.Category) && !await db.Categories.AnyAsync(c => c.Name == p.Category)) ModelState.AddModelError(nameof(Product.Category), "Hãy chọn một danh mục có sẵn.");
+  if (!ProductStatus.Units.Contains(p.Unit)) ModelState.AddModelError(nameof(Product.Unit), "Hãy chọn đơn vị có sẵn.");
+  p.Code = p.Code?.Trim().ToUpperInvariant();
+  if (string.IsNullOrEmpty(p.Code)) { var n = await db.Products.MaxAsync(x => (int?)x.Id) ?? 0; do p.Code = $"SP{++n:000}"; while (await db.Products.AnyAsync(x => x.Code == p.Code && x.Id != selfId)); ModelState.Remove(nameof(Product.Code)); }
+  else if (await db.Products.AnyAsync(x => x.Code == p.Code && x.Id != selfId)) ModelState.AddModelError(nameof(Product.Code), $"Mã “{p.Code}” đã được dùng cho bánh khác.");
  }
 }
 

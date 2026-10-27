@@ -1,0 +1,20 @@
+@model List<StockRow>
+@{ ViewData["Title"] = "Tồn kho"; ViewData["Nav"] = "warehouse"; int low = ViewBag.Low; }
+<div class="admin-head"><div><div class="eyebrow">STOCK</div><h1>Tồn kho</h1></div><div class="head-actions"><a class="ghost" asp-action="Discards">Ghi bánh hủy</a><a class="btn" asp-action="CreatePurchase">Tạo phiếu nhập <span>+</span></a></div></div>
+<partial name="_WarehouseTabs" model='"stock"'/>
+<form class="filter-bar" method="get" aria-label="Lọc tồn kho">
+ <label class="grow">Tìm bánh<input name="q" value="@ViewBag.Q" placeholder="Mã hoặc tên bánh…"/></label>
+ <label>Mức tồn<select name="level"><option value="">Tất cả</option><option value="low" selected="@((string?)ViewBag.Level == "low")">Sắp hết (≤ @low)</option></select></label>
+ <div class="filter-actions"><button class="ghost on">Lọc</button>@if (!string.IsNullOrEmpty((string?)ViewBag.Q) || !string.IsNullOrEmpty((string?)ViewBag.Level)) {<a class="ghost" href="/admin/stock">Xóa lọc</a>}</div>
+</form>
+<p class="hint">Tồn = đã nhập kho (phiếu đã xác nhận) − đã bán (đơn chưa hủy) − bánh hủy.</p>
+<div class="table-wrap"><table>
+ <thead><tr><th>Mã</th><th>Bánh</th><th>Đơn vị</th><th class="num">Đã nhập</th><th class="num">Đã bán</th><th class="num">Đã hủy</th><th class="num">Tồn kho</th><th>Tình trạng</th></tr></thead>
+ <tbody>
+ @foreach (var s in Model) {
+  <tr><td><b>@s.Product.Code</b></td><td>@s.Product.Name<small>@s.Product.Category</small></td><td>@s.Product.Unit</td><td class="num">@s.In</td><td class="num">@s.Sold</td><td class="num">@s.Wasted</td><td class="num"><b class="@(s.Left <= 0 ? "low" : "")">@s.Left</b></td>
+   <td>@if (s.Left < 0) {<span class="st st-cancel">Âm kho</span>} else if (s.Left == 0) {<span class="st st-cancel">Hết hàng</span>} else if (s.Left <= low) {<span class="st st-new">Sắp hết</span>} else {<span class="st st-done">Còn hàng</span>}</td></tr>
+ }
+ @if (Model.Count == 0) {<tr><td colspan="8" class="empty">Không có bánh nào.</td></tr>}
+ </tbody>
+</table></div>

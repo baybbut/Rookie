@@ -1,6 +1,6 @@
 @model DashboardVm
 @{ ViewData["Title"] = "Trang chủ"; ViewData["Nav"] = "dashboard"; var maxTop = Math.Max(1, Model.TopProducts.Select(t => t.Value).DefaultIfEmpty(1).Max()); }
-<div class="admin-head"><div><div class="eyebrow">DASHBOARD</div><h1>Tiệm bánh hôm nay</h1></div><div class="head-actions"><a class="ghost" asp-action="CreateOrder">+ Tạo đơn</a><a class="btn" asp-action="Create">Thêm bánh mới <span>+</span></a></div></div>
+<div class="admin-head"><div><div class="eyebrow">DASHBOARD</div><h1>Tiệm bánh hôm nay</h1></div></div>
 <div class="stats">
  <div class="stat"><small>Doanh thu hôm nay</small><b>@Fmt.Vnd(Model.RevenueToday)</b></div>
  <div class="stat"><small>Doanh thu tháng này</small><b>@Fmt.Vnd(Model.RevenueMonth)</b></div>
