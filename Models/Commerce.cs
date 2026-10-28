@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 namespace Rookie.Models;
 public class Customer {
+ [StringLength(40)] public string? UserName {get;set;}
  public int Id {get;set;}
  [Required, StringLength(100)] public string Name {get;set;} = "";
  [Required, EmailAddress, StringLength(254)] public string Email {get;set;} = "";
@@ -31,13 +32,14 @@ public class OrderItem {
  public int Quantity {get;set;}
 }
 public class RegisterInput {
+ [Required(ErrorMessage="Nhập tên tài khoản"),RegularExpression(@"^[a-zA-Z0-9_]{3,40}$",ErrorMessage="Tên tài khoản gồm 3–40 chữ cái, số hoặc dấu gạch dưới")] public string UserName {get;set;} = "";
  [Required(ErrorMessage="Nhập họ tên"),StringLength(100)] public string Name {get;set;} = "";
  [Required,EmailAddress,StringLength(254)] public string Email {get;set;} = "";
  [Required,MinLength(8,ErrorMessage="Mật khẩu cần ít nhất 8 ký tự"),MaxLength(128)] public string Password {get;set;} = "";
  [Compare(nameof(Password),ErrorMessage="Mật khẩu xác nhận chưa khớp")] public string ConfirmPassword {get;set;} = "";
 }
 public class LoginInput {
- [Required,EmailAddress] public string Email {get;set;} = "";
+ [Required] public string Email {get;set;} = "";
  [Required] public string Password {get;set;} = "";
 }
 public class ProfileInput {

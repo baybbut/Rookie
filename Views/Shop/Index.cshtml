@@ -1,0 +1,11 @@
+@model List<Product>
+<section class="section catalog-page"><div class="eyebrow">FIND YOUR LITTLE HAPPINESS</div><h1>Tất cả bánh nhà Rookie.</h1><p>Một chút ngọt ngào, đúng với điều bạn thích.</p>
+<form method="get" action="/Shop" class="catalog-filters form-card">
+<label>Tìm kiếm sản phẩm<input name="q" value="@ViewBag.Query" type="search" placeholder="Tên bánh hoặc hương vị…" maxlength="150"/></label>
+<label>Loại bánh<select name="category"><option value="">Tất cả loại bánh</option>@foreach(string c in ViewBag.Categories){<option value="@c" selected="@(ViewBag.Category==c)">@c</option>}</select></label>
+<label>Bộ sưu tập<select name="kind"><option value="">Tất cả bánh</option><option value="best" selected="@(ViewBag.Kind=="best")">Bánh bán chạy</option><option value="new" selected="@(ViewBag.Kind=="new")">Bánh mới</option></select></label>
+<label>Sắp xếp<select name="sort"><option value="">Mặc định</option><option value="price-asc" selected="@(ViewBag.Sort=="price-asc")">Giá tăng dần</option><option value="price-desc" selected="@(ViewBag.Sort=="price-desc")">Giá giảm dần</option></select></label>
+<button class="btn">Tìm & lọc ↗</button><a href="/Shop" class="text-link">Xóa bộ lọc</a></form>
+<p class="muted" role="status">Tìm thấy @Model.Count sản phẩm</p>
+@if(Model.Count==0){<div class="empty-card"><h2>Chưa tìm thấy chiếc bánh phù hợp.</h2><p>Thử tên bánh khác hoặc bỏ bớt bộ lọc nhé.</p><a href="/Shop" class="btn">Xem tất cả bánh ↗</a></div>}
+<div class="product-grid">@foreach(var p in Model){<article class="product"><div class="product-image"><span class="badge">@(p.IsNew?"JUST BAKED":"BAKED WITH LOVE")</span><a asp-action="Details" asp-route-id="@p.Id"><img src="https://images.unsplash.com/@(p.Image)?auto=format&fit=crop&w=700&q=85" alt="@p.Name" loading="lazy"/></a><button class="add" data-id="@p.Id" data-name="@p.Name" aria-label="Thêm @p.Name vào giỏ">+</button></div><div class="product-meta"><small>@p.Category</small></div><div class="product-title"><h3><a asp-action="Details" asp-route-id="@p.Id">@p.Name</a></h3><b>@p.Price.ToString("N0") ₫</b></div><p>@p.Description</p></article>}</div></section>
