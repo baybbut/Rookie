@@ -1,0 +1,2 @@
+@model Rookie.Models.Order
+<section class="section success-page"><div class="success-icon">♡</div><div class="eyebrow">THANK YOU, SWEETIE</div><h1>Đã nhận đơn bánh của bạn!</h1><p>Cảm ơn bạn đã chọn Rookie. Đơn <b>#RK@Model.Id.ToString("D6")</b> đang chờ tiệm xác nhận.</p><div class="form-card"><h2>@Model.Total.ToString("N0") ₫</h2><p>Thanh toán khi nhận hàng · Chưa thanh toán</p><p>Giao đến: @Model.Address</p></div><a class="btn" asp-action="Details" asp-route-id="@Model.Id">Xem chi tiết đơn ↗</a><a class="text-link" href="/#cakes">Tiếp tục dạo tiệm</a></section>

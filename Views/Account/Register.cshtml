@@ -1,0 +1,8 @@
+@model Rookie.Models.RegisterInput
+<section class="section account-page"><div class="eyebrow">JOIN THE SWEET SIDE</div><h1>Tụi mình làm quen nhé ♡</h1><p>Tạo tài khoản để lưu địa chỉ và theo dõi những hộp bánh của bạn.</p><form method="post" class="form-card">
+<div asp-validation-summary="All" class="validation"></div>
+<label>Họ tên<input asp-for="Name" autocomplete="name" required maxlength="100"/></label>
+<label>Email<input asp-for="Email" type="email" autocomplete="email" required/></label>
+<label>Mật khẩu<input asp-for="Password" type="password" autocomplete="new-password" required minlength="8" maxlength="128"/><small>Ít nhất 8 ký tự.</small></label>
+<label>Nhập lại mật khẩu<input asp-for="ConfirmPassword" type="password" autocomplete="new-password" required/></label>
+<button class="btn">Tạo tài khoản ↗</button><p>Đã có tài khoản? <a asp-action="Login">Đăng nhập</a></p></form></section>
