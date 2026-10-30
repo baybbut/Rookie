@@ -6,3 +6,15 @@
 .catalog-page{min-height:65vh}.catalog-page h1{font-size:clamp(36px,4vw,58px);letter-spacing:-1.5px}.catalog-filters{display:flex;align-items:end;gap:18px;flex-wrap:wrap;margin:30px 0}.catalog-filters label{flex:1;min-width:140px;margin:0}.catalog-filters label:first-child{flex:2;min-width:200px}.catalog-filters select{display:block;width:100%;padding:13px 10px;border:1px solid #c9c7b8;border-radius:5px;background:#fffdf6;color:var(--ink);font:inherit;margin-top:8px}.catalog-filters .btn{margin:0}.catalog-filters .text-link{margin-bottom:14px;white-space:nowrap}@media(max-width:600px){.catalog-filters label,.catalog-filters label:first-child{flex:1 1 100%}.catalog-page h1{font-size:36px}}
 
 .cake-logo{display:inline-grid;grid-template-columns:auto auto;align-items:center;column-gap:6px;flex-shrink:0;line-height:.85}.cake-logo .wordmark{font:inherit;letter-spacing:-3px}.cake-logo img{display:block;object-fit:contain;width:1em;height:1em;margin:0}.cake-logo small{grid-column:1/-1;white-space:nowrap;margin-top:12px}
+
+/* Catalog controls use Poppins independently of serif headings. */
+.catalog-page>p,.catalog-filters,.catalog-filters label,.catalog-filters input,.catalog-filters select,.catalog-filters option,.catalog-filters button,.catalog-filters a{font-family:'Poppins',Arial,sans-serif}
+.catalog-filters label{font-size:12px;font-weight:600;line-height:1.5}
+.catalog-filters input[type=search],.catalog-filters select{height:48px;min-width:0;font-size:12px;font-weight:400;line-height:1.5}
+.catalog-filters input[type=search]{padding:12px 14px}
+.catalog-filters input::placeholder{font-family:inherit;font-weight:400;opacity:1;color:#77796f}
+.catalog-filters select{-webkit-appearance:none;appearance:none;padding:12px 42px 12px 14px;background-color:#fffdf6;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='m4 6 4 4 4-4' stroke='%23252a22' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;background-size:16px 16px;cursor:pointer}
+.catalog-filters option{font-weight:400}
+.catalog-filters .btn{min-height:48px;padding:12px 22px;font-weight:500;line-height:1.5}
+.catalog-filters .text-link{font-size:12px;font-weight:500}
+@media(forced-colors:active){.catalog-filters select{appearance:auto;background-image:none}}
