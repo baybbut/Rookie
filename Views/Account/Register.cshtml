@@ -1,5 +1,5 @@
 @model Rookie.Models.RegisterInput
-<section class="section account-page"><div class="eyebrow">JOIN THE SWEET SIDE</div><h1>Tụi mình làm quen nhé ♡</h1><div class="page-links"><strong>Đăng ký</strong><a asp-action="Login">Đăng nhập</a></div><p>Tạo tài khoản để lưu địa chỉ và theo dõi những hộp bánh của bạn.</p><form method="post" class="form-card">
+<section class="section account-page"><div class="eyebrow">JOIN THE SWEET SIDE</div><h1>Tụi mình làm quen nhé</h1><div class="page-links"><strong>Đăng ký</strong><a asp-action="Login">Đăng nhập</a></div><p>Tạo tài khoản để lưu địa chỉ và theo dõi những hộp bánh của bạn.</p><form method="post" class="form-card">
 <div asp-validation-summary="All" class="validation"></div>
 <label>Tên tài khoản<input asp-for="UserName" autocomplete="username" required minlength="3" maxlength="40" pattern="[a-zA-Z0-9_]{3,40}"/><small>3–40 chữ cái, số hoặc dấu gạch dưới.</small></label>
 <label>Họ tên<input asp-for="Name" autocomplete="name" required maxlength="100"/></label>
