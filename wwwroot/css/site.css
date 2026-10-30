@@ -25,3 +25,10 @@ header nav a::after,header .tools a::after,header .tools button::after{content:"
 header nav a:is(:hover,:focus-visible)::after,header .tools a:is(:hover,:focus-visible)::after,header .tools button:is(:hover,:focus-visible)::after{animation:header-border-trace .45s ease-out forwards}
 @keyframes header-border-trace{0%{background-size:0 1px,1px 0,0 1px,1px 0}25%{background-size:100% 1px,1px 0,0 1px,1px 0}50%{background-size:100% 1px,1px 100%,0 1px,1px 0}75%{background-size:100% 1px,1px 100%,100% 1px,1px 0}100%{background-size:100% 1px,1px 100%,100% 1px,1px 100%}}
 @media(prefers-reduced-motion:reduce){header nav a:is(:hover,:focus-visible)::after,header .tools a:is(:hover,:focus-visible)::after,header .tools button:is(:hover,:focus-visible)::after{animation:none;background-size:100% 1px,1px 100%,100% 1px,1px 100%}}
+
+/* Header cart and signed-in customer actions. */
+.tools .header-cart,.tools .header-account{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;line-height:1.5}
+.header-icon{display:block;width:25px;height:25px;flex-shrink:0}
+.header-cart #cartCount{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;margin:0;padding:0 6px;line-height:1;font-size:12px;font-variant-numeric:tabular-nums}
+.account-name{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:600px){.header-icon{width:23px;height:23px}.account-name{max-width:110px}.tools .header-account,.tools .header-cart{gap:6px}}
