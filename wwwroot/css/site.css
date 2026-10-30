@@ -19,12 +19,11 @@
 .catalog-filters .text-link{font-size:12px;font-weight:500}
 @media(forced-colors:active){.catalog-filters select{appearance:auto;background-image:none}}
 
-/* Trace a border around header actions without changing their layout. */
+/* Animate only the bottom border of header actions. */
 header nav a,header .tools a,header .tools button{position:relative}
-header nav a::after,header .tools a::after,header .tools button::after{content:"";position:absolute;inset:-6px -4px;pointer-events:none;background:linear-gradient(var(--ink),var(--ink)) left top/0 1px no-repeat,linear-gradient(var(--ink),var(--ink)) right top/1px 0 no-repeat,linear-gradient(var(--ink),var(--ink)) right bottom/0 1px no-repeat,linear-gradient(var(--ink),var(--ink)) left bottom/1px 0 no-repeat}
-header nav a:is(:hover,:focus-visible)::after,header .tools a:is(:hover,:focus-visible)::after,header .tools button:is(:hover,:focus-visible)::after{animation:header-border-trace .45s ease-out forwards}
-@keyframes header-border-trace{0%{background-size:0 1px,1px 0,0 1px,1px 0}25%{background-size:100% 1px,1px 0,0 1px,1px 0}50%{background-size:100% 1px,1px 100%,0 1px,1px 0}75%{background-size:100% 1px,1px 100%,100% 1px,1px 0}100%{background-size:100% 1px,1px 100%,100% 1px,1px 100%}}
-@media(prefers-reduced-motion:reduce){header nav a:is(:hover,:focus-visible)::after,header .tools a:is(:hover,:focus-visible)::after,header .tools button:is(:hover,:focus-visible)::after{animation:none;background-size:100% 1px,1px 100%,100% 1px,1px 100%}}
+header nav a::after,header .tools a::after,header .tools button::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:1px;background:var(--ink);pointer-events:none;transform:scaleX(0);transform-origin:left center;transition:transform .25s ease-out}
+header nav a:is(:hover,:focus-visible)::after,header .tools a:is(:hover,:focus-visible)::after,header .tools button:is(:hover,:focus-visible)::after{transform:scaleX(1)}
+@media(prefers-reduced-motion:reduce){header nav a::after,header .tools a::after,header .tools button::after{transition:none}}
 
 /* Header cart and signed-in customer actions. */
 .tools .header-cart,.tools .header-account{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;line-height:1.5}
