@@ -1,0 +1,12 @@
+@model Purchase
+@{ ViewData["Title"] = "Phiếu nhập #" + Model.Id; ViewData["Nav"] = "purchases"; }
+<div class="admin-head"><div><div class="eyebrow">PURCHASE</div><h1>Phiếu nhập #@Model.Id</h1></div><a class="ghost" asp-action="Purchases">← Quay lại</a></div>
+@if (TempData["Msg"] is string msg) {<p class="notice" role="status">@msg</p>}
+<p class="hint"><b>@Model.Supplier</b> · @Fmt.Date(Model.CreatedAt)@(string.IsNullOrEmpty(Model.Note) ? "" : " · " + Model.Note)</p>
+<div class="table-wrap"><table>
+ <thead><tr><th>Mặt hàng</th><th class="num">Số lượng</th><th class="num">Đơn giá</th><th class="num">Thành tiền</th></tr></thead>
+ <tbody>
+ @foreach (var i in Model.Items) {<tr><td>@i.ItemName</td><td class="num">@i.Quantity.ToString("0.##") @i.Unit</td><td class="num">@Fmt.Vnd(i.UnitCost)</td><td class="num">@Fmt.Vnd(i.Subtotal)</td></tr>}
+ <tr class="sum"><td colspan="3" class="num"><b>Tổng cộng</b></td><td class="num"><b>@Fmt.Vnd(Model.Total)</b></td></tr>
+ </tbody>
+</table></div>

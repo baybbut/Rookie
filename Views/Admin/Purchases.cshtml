@@ -1,0 +1,14 @@
+@model List<Purchase>
+@{ ViewData["Title"] = "Quản lý nhập hàng"; ViewData["Nav"] = "purchases"; }
+<div class="admin-head"><div><div class="eyebrow">PURCHASES</div><h1>Nhập hàng</h1></div><a class="btn" asp-action="CreatePurchase">Tạo phiếu nhập <span>+</span></a></div>
+@if (TempData["Msg"] is string msg) {<p class="notice" role="status">@msg</p>}
+<div class="table-wrap"><table>
+ <thead><tr><th>Phiếu</th><th>Nhà cung cấp</th><th>Ngày nhập</th><th>Mặt hàng</th><th class="num">Tổng tiền</th></tr></thead>
+ <tbody>
+ @foreach (var p in Model) {
+  <tr><td><a class="text-link" asp-action="PurchaseDetail" asp-route-id="@p.Id">#@p.Id</a></td><td>@p.Supplier</td><td>@Fmt.Date(p.CreatedAt)</td>
+   <td>@p.Items.Count dòng<small>@string.Join(", ", p.Items.Select(i => i.ItemName))</small></td><td class="num">@Fmt.Vnd(p.Total)</td></tr>
+ }
+ @if (Model.Count == 0) {<tr><td colspan="5" class="empty">Chưa có phiếu nhập nào.</td></tr>}
+ </tbody>
+</table></div>

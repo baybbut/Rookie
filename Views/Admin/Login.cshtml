@@ -1,0 +1,14 @@
+@{ ViewData["Title"] = "Đăng nhập"; }
+<section class="login-card">
+ <div class="eyebrow">WELCOME BACK, BAKER</div>
+ <h1>Đăng nhập quản trị</h1>
+ @if (ViewBag.Disabled == true) {<p class="alert">Chưa cấu hình mật khẩu. Đặt biến <b>Admin__Password</b> (hoặc <b>Admin:Password</b> trong cấu hình) rồi chạy lại.</p>}
+ else {
+  <form method="post" asp-controller="Admin" asp-action="Login">
+   <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl"/>
+   <label>Mật khẩu<input type="password" name="password" autocomplete="current-password" autofocus required/></label>
+   @if (ViewBag.Error is string err) {<p class="alert">@err</p>}
+   <button class="btn" type="submit">Vào quản trị <span>↗</span></button>
+  </form>
+ }
+</section>
