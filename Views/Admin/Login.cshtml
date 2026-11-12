@@ -2,11 +2,12 @@
 <section class="login-card">
  <div class="eyebrow">WELCOME BACK, BAKER</div>
  <h1>Đăng nhập quản trị</h1>
- @if (ViewBag.Disabled == true) {<p class="alert">Chưa cấu hình mật khẩu. Đặt biến <b>Admin__Password</b> (hoặc <b>Admin:Password</b> trong cấu hình) rồi chạy lại.</p>}
+ @if (ViewBag.Disabled == true) {<p class="alert">Chưa có tài khoản quản trị. Đặt biến <b>Admin__Password</b> (hoặc <b>Admin:Password</b> trong cấu hình) rồi chạy lại để tạo tài khoản <b>admin</b>.</p>}
  else {
   <form method="post" asp-controller="Admin" asp-action="Login">
    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl"/>
-   <label>Mật khẩu<input type="password" name="password" autocomplete="current-password" autofocus required/></label>
+   <label>Tên đăng nhập<input name="username" value="@ViewBag.Username" autocomplete="username" autocapitalize="none" autofocus required/></label>
+   <label>Mật khẩu<input type="password" name="password" autocomplete="current-password" required/></label>
    @if (ViewBag.Error is string err) {<p class="alert">@err</p>}
    <button class="btn" type="submit">Vào quản trị <span>↗</span></button>
   </form>

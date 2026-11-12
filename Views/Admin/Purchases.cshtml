@@ -1,14 +1,22 @@
 @model List<Purchase>
-@{ ViewData["Title"] = "Quản lý nhập hàng"; ViewData["Nav"] = "purchases"; }
-<div class="admin-head"><div><div class="eyebrow">PURCHASES</div><h1>Nhập hàng</h1></div><a class="btn" asp-action="CreatePurchase">Tạo phiếu nhập <span>+</span></a></div>
+@{ ViewData["Title"] = "Quản lý kho"; ViewData["Nav"] = "warehouse"; var df = (DateFilter)ViewBag.Date; var anyFilter = !string.IsNullOrEmpty((string?)ViewBag.Q) || !string.IsNullOrEmpty((string?)ViewBag.Status) || df.Day is not null || df.Month is not null || df.Year is not null; }
+<div class="admin-head"><div><div class="eyebrow">WAREHOUSE</div><h1>Quản lý kho</h1></div><a class="btn" asp-action="CreatePurchase">Tạo phiếu nhập <span>+</span></a></div>
+<partial name="_WarehouseTabs" model='"purchases"'/>
 @if (TempData["Msg"] is string msg) {<p class="notice" role="status">@msg</p>}
+<form class="filter-bar" method="get" aria-label="Tìm phiếu nhập">
+ <label class="grow">Tìm phiếu nhập<input name="q" value="@ViewBag.Q" placeholder="Mã phiếu, xưởng bánh hoặc tên bánh…"/></label>
+ <partial name="_DateFilter" model="df"/>
+ <label>Trạng thái<select name="status"><option value="">Tất cả</option>@foreach (var s in PurchaseStatus.All) {<option value="@s" selected="@((string?)ViewBag.Status == s)">@s</option>}</select></label>
+ <div class="filter-actions"><button class="ghost on">Lọc</button>@if (anyFilter) {<a class="ghost" href="/admin/purchases">Xóa lọc</a>}</div>
+</form>
 <div class="table-wrap"><table>
- <thead><tr><th>Phiếu</th><th>Nhà cung cấp</th><th>Ngày nhập</th><th>Mặt hàng</th><th class="num">Tổng tiền</th></tr></thead>
+ <thead><tr><th>Phiếu</th><th>Xưởng bánh</th><th>Ngày lập</th><th>Bánh nhập</th><th class="num">Tổng tiền</th><th>Trạng thái</th></tr></thead>
  <tbody>
  @foreach (var p in Model) {
-  <tr><td><a class="text-link" asp-action="PurchaseDetail" asp-route-id="@p.Id">#@p.Id</a></td><td>@p.Supplier</td><td>@Fmt.Date(p.CreatedAt)</td>
-   <td>@p.Items.Count dòng<small>@string.Join(", ", p.Items.Select(i => i.ItemName))</small></td><td class="num">@Fmt.Vnd(p.Total)</td></tr>
+  <tr><td><a class="text-link" asp-action="PurchaseDetail" asp-route-id="@p.Id">#@p.Id</a></td><td>@p.Supplier</td><td>@Fmt.Day(p.CreatedAt)</td>
+   <td>@p.Items.Sum(i => i.Quantity) bánh · @p.Items.Count loại<small>@string.Join(", ", p.Items.Select(i => i.ItemName))</small></td><td class="num">@Fmt.Vnd(p.Total)</td>
+   <td><span class="st @Fmt.PurchaseClass(p.Status)">@p.Status</span></td></tr>
  }
- @if (Model.Count == 0) {<tr><td colspan="5" class="empty">Chưa có phiếu nhập nào.</td></tr>}
+ @if (Model.Count == 0) {<tr><td colspan="6" class="empty">Không có phiếu nhập nào.</td></tr>}
  </tbody>
 </table></div>

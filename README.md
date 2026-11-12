@@ -7,6 +7,14 @@ dotnet restore
 dotnet run --urls http://localhost:5080
 ```
 
+WinForms chỉ chạy trên Windows và không dùng để render website. Có thể xây dựng ứng dụng quản trị WinForms riêng kết nối API trong giai đoạn sau.
+
+## Ứng dụng quản trị WinForms
+`Rookie.Admin/` là app quản trị WinForms (Windows, .NET 8) dùng chung model và file `rookie.db` với web, nên dữ liệu hai bên luôn khớp. Web admin (`/admin`) vẫn còn nguyên.
+```sh
+dotnet run --project Rookie.Admin
+```
+Đăng nhập `admin` / `admin` (đặt biến môi trường `Admin__Password` để đổi mật khẩu cho lần tạo DB đầu tiên). App tự tìm `rookie.db` ở thư mục dự án web; đặt `ROOKIE_DB` để chỉ file khác. Nếu chưa có DB, app tạo mới kèm dữ liệu mẫu. Xuất Excel ghi file .xlsx; xuất PDF dùng máy in "Microsoft Print to PDF" của Windows.
 - `/`: bánh bán chạy/bánh mới; “Xem tất cả bánh” mở `/Shop`.
 - `/Shop`: trang riêng với tìm kiếm, bộ lọc loại bánh/bánh mới/bán chạy và sắp xếp giá.
 - `/Shop/Details/1`: chi tiết bánh và chọn số lượng.

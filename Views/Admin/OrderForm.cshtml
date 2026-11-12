@@ -1,11 +1,18 @@
-@{ ViewData["Title"] = "Tạo đơn hàng"; ViewData["Nav"] = "orders"; var customers = (List<Customer>)ViewBag.Customers; var products = (List<Product>)ViewBag.Products; }
-<div class="admin-head"><div><div class="eyebrow">NEW ORDER</div><h1>Tạo đơn hàng</h1></div><a class="ghost" asp-action="Orders">← Quay lại</a></div>
-<form class="admin-form" method="post" asp-action="CreateOrder">
+@{ ViewData["Title"] = "Tạo đơn hàng"; ViewData["Nav"] = "orders"; var customers = (List<Customer>)ViewBag.Customers; var products = (List<Product>)ViewBag.Products; var stock = (Dictionary<int, int>)ViewBag.Stock; }
+<div class="admin-head"><div><div class="eyebrow">NEW ORDER</div><h1>Tạo đơn hàng mới</h1></div><a class="ghost" asp-action="Orders">← Quay lại</a></div>
+<form class="admin-form" method="post" asp-action="CreateOrder" id="orderForm">
  @if (ViewBag.Error is string err) {<p class="alert">@err</p>}
- <label>Khách hàng<select name="customerId" required><option value="">— Chọn khách —</option>@foreach (var c in customers) {<option value="@c.Id" selected="@(ViewBag.Selected is int s && s == c.Id)">@c.FullName · @c.Phone</option>}</select></label>
+ <label>Khách hàng<select name="customerId" required><option value="">— Chọn khách —</option>@foreach (var c in customers) {<option value="@c.Id" selected="@(ViewBag.Selected is int s && s == c.Id)">@c.FullName · @c.Phone</option>}</select><small>Chưa có khách? <a class="text-link" asp-action="CreateCustomer">Thêm khách hàng mới ↗</a></small></label>
  <fieldset><legend>Số lượng từng loại bánh</legend>
-  @foreach (var p in products) {<div class="qty-row"><span>@p.Name<small>@Fmt.Vnd(p.Price)</small></span><input type="number" name="qty[@p.Id]" min="0" max="99" value="0" aria-label="Số lượng @p.Name"/></div>}
+  @foreach (var p in products) {var left = stock.GetValueOrDefault(p.Id); <div class="qty-row"><span>@p.Name <em class="code">@p.Code</em><small>@Fmt.Vnd(p.Price) / @p.Unit · tồn kho: <b class="@(left <= 0 ? "low" : "")">@left</b></small></span><input type="number" name="qty[@p.Id]" min="0" max="99" value="0" data-price="@((long)p.Price)" data-left="@left" aria-label="Số lượng @p.Name"/></div>}
+  <p class="qty-total">Tổng tạm tính: <b id="orderTotal">0 ₫</b> <span id="orderWarn" class="low"></span></p>
  </fieldset>
  <label>Ghi chú<input name="note" maxlength="200" value="@ViewBag.Note"/></label>
+ <p class="hint">Đơn mới ở trạng thái “Mới”, cần nhân viên xác nhận ở trang chi tiết đơn.</p>
  <div class="form-actions"><button class="btn" type="submit">Tạo đơn <span>↗</span></button></div>
 </form>
+<script>
+(()=>{const f=document.getElementById('orderForm'),t=document.getElementById('orderTotal'),w=document.getElementById('orderWarn'),ins=[...f.querySelectorAll('input[data-price]')];
+const upd=()=>{let s=0,over=[];ins.forEach(i=>{const n=Math.max(0,Math.min(99,+i.value||0));s+=n*+i.dataset.price;if(n>+i.dataset.left)over.push(i.getAttribute('aria-label').replace('Số lượng ',''))});t.textContent=s.toLocaleString('vi-VN')+' ₫';w.textContent=over.length?'⚠ Vượt tồn kho: '+over.join(', '):''};
+f.addEventListener('input',upd);upd()})();
+</script>

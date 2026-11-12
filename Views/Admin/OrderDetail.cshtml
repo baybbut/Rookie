@@ -1,13 +1,25 @@
 @model Order
-@{ ViewData["Title"] = "Đơn #" + Model.Id; ViewData["Nav"] = "orders"; }
+@{ ViewData["Title"] = "Đơn #" + Model.Id; ViewData["Nav"] = "orders"; var next = OrderStatus.Next(Model.Status); }
 <div class="admin-head"><div><div class="eyebrow">ORDER</div><h1>Đơn #@Model.Id <span class="st @Fmt.StatusClass(Model.Status)">@Model.Status</span></h1></div><a class="ghost" asp-action="Orders">← Quay lại</a></div>
 @if (TempData["Msg"] is string msg) {<p class="notice" role="status">@msg</p>}
 <div class="panels">
- <section class="panel"><h2>Khách hàng</h2><p><b>@Model.Customer?.FullName</b></p><p class="hint">@Model.Customer?.Email · @Model.Customer?.Phone<br/>@Model.Customer?.Address</p><p class="hint">Đặt lúc @Fmt.Date(Model.CreatedAt)</p>@if (!string.IsNullOrEmpty(Model.Note)) {<p class="hint">Ghi chú: @Model.Note</p>}</section>
- <section class="panel"><h2>Cập nhật trạng thái</h2>
-  <form class="status-form" method="post" asp-action="SetOrderStatus" asp-route-id="@Model.Id">
-   @foreach (var s in OrderStatus.All) {<button class="ghost @(s == Model.Status ? "on" : "")" name="status" value="@s">@s</button>}
-  </form>
+ <section class="panel"><h2>Khách hàng</h2><p><b>@Model.Customer?.FullName</b></p><p class="hint">@Model.Customer?.Email · @Model.Customer?.Phone<br/>@Model.Customer?.Address</p><p class="hint">Đặt lúc @Fmt.Date(Model.CreatedAt)@(Model.CreatedBy is null ? "" : " · tạo bởi " + Model.CreatedBy)</p>@if (!string.IsNullOrEmpty(Model.Note)) {<p class="hint">Ghi chú: @Model.Note</p>}</section>
+ <section class="panel"><h2>Xác nhận &amp; xử lý</h2>
+  @if (Model.Status == OrderStatus.New) {
+   <p class="alert">Đơn chưa được nhân viên xác nhận.</p>
+   <form class="status-form" method="post" asp-action="SetOrderStatus" asp-route-id="@Model.Id" data-confirm="Xác nhận đơn #@Model.Id? Bạn xác nhận đã kiểm tra thông tin khách và sản phẩm.">
+    <button class="btn" name="status" value="@OrderStatus.Confirmed">Xác nhận đơn <span>✓</span></button>
+   </form>
+  } else if (Model.ConfirmedBy is not null) {
+   <p class="hint">✓ Đã xác nhận bởi <b>@Model.ConfirmedBy</b>@(Model.ConfirmedAt is DateTime at ? " lúc " + Fmt.Date(at) : "")</p>
+  }
+  @if (next is not null && Model.Status != OrderStatus.New) {
+   <form class="status-form" method="post" asp-action="SetOrderStatus" asp-route-id="@Model.Id"><button class="btn" name="status" value="@next">Chuyển sang “@next” <span>→</span></button></form>
+  }
+  @if (OrderStatus.CanCancel(Model.Status)) {
+   <form class="status-form" method="post" asp-action="SetOrderStatus" asp-route-id="@Model.Id" data-confirm="Hủy đơn #@Model.Id? Không thể mở lại sau khi hủy."><button class="ghost danger" name="status" value="@OrderStatus.Cancelled">Hủy đơn</button></form>
+  }
+  @if (Model.Status is OrderStatus.Done or OrderStatus.Cancelled) {<p class="hint">Đơn đã @Model.Status.ToLower() — không còn thao tác nào.</p>}
  </section>
 </div>
 <div class="table-wrap"><table>

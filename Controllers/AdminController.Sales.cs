@@ -1,22 +1,25 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Rookie.Data;
 using Rookie.Models;
 namespace Rookie.Controllers;
 public partial class AdminController {
  // ---- Khách hàng ----
  [HttpGet("customers")]
- public async Task<IActionResult> Customers(string? q) {
+ public async Task<IActionResult> Customers(string? name, string? contact, string? status) {
   var list = await db.Customers.AsNoTracking().Include(c => c.Orders).ThenInclude(o => o.Items).OrderBy(c => c.Id).ToListAsync();
-  ViewBag.Q = q; var term = q?.Trim();
-  return View(string.IsNullOrEmpty(term) ? list : list.Where(c => $"{c.FullName} {c.Email} {c.Phone}".Contains(term, StringComparison.CurrentCultureIgnoreCase)).ToList());
+  ViewBag.Name = name; ViewBag.Contact = contact; ViewBag.Status = status;
+  return View(list.Where(c => Has(c.FullName, name) && (Has(c.Email, contact) || Has(c.Phone, contact)) && (string.IsNullOrEmpty(status) || c.IsLocked == (status == "locked"))).ToList());
  }
 
  [HttpGet("customers/create")]
  public IActionResult CreateCustomer() => View("CustomerForm", new Customer());
 
  [HttpPost("customers/create"), ValidateAntiForgeryToken]
- public async Task<IActionResult> CreateCustomer([Bind("FullName,Email,Phone,Address")] Customer c) {
+ public async Task<IActionResult> CreateCustomer([Bind("FullName,Email,Phone,Address")] Customer c, string? password) {
+  await CheckCustomer(c, password, true, 0);
   if (!ModelState.IsValid) return View("CustomerForm", c);
+  c.PasswordHash = Pw.Hash(password!);
   db.Customers.Add(c); await db.SaveChangesAsync();
   TempData["Msg"] = $"Đã thêm khách hàng “{c.FullName}”.";
   return RedirectToAction(nameof(Customers));
@@ -29,14 +32,23 @@ public partial class AdminController {
  }
 
  [HttpPost("customers/edit/{id:int}"), ValidateAntiForgeryToken]
- public async Task<IActionResult> EditCustomer(int id, [Bind("FullName,Email,Phone,Address")] Customer input) {
+ public async Task<IActionResult> EditCustomer(int id, [Bind("FullName,Email,Phone,Address")] Customer input, string? password) {
   var c = await db.Customers.FindAsync(id);
   if (c is null) return NotFound();
+  await CheckCustomer(input, password, false, id);
   if (!ModelState.IsValid) { input.Id = id; return View("CustomerForm", input); }
   (c.FullName, c.Email, c.Phone, c.Address) = (input.FullName, input.Email, input.Phone, input.Address);
+  if (!string.IsNullOrEmpty(password)) c.PasswordHash = Pw.Hash(password);
   await db.SaveChangesAsync();
-  TempData["Msg"] = $"Đã cập nhật “{c.FullName}”.";
+  TempData["Msg"] = $"Đã cập nhật “{c.FullName}”{(string.IsNullOrEmpty(password) ? "" : " và đổi mật khẩu")}.";
   return RedirectToAction(nameof(Customers));
+ }
+
+ async Task CheckCustomer(Customer c, string? password, bool create, int selfId) {
+  if (create && string.IsNullOrEmpty(password)) ModelState.AddModelError("password", "Hãy nhập mật khẩu cho khách hàng.");
+  else if (!string.IsNullOrEmpty(password) && (password.Length < 6 || password.Length > 64)) ModelState.AddModelError("password", "Mật khẩu dài 6–64 ký tự.");
+  c.Email = c.Email?.Trim() ?? "";
+  if (c.Email.Length > 0 && await db.Customers.AnyAsync(x => x.Email == c.Email && x.Id != selfId)) ModelState.AddModelError(nameof(Customer.Email), "Email này đã có khách hàng khác dùng.");
  }
 
  [HttpPost("customers/lock/{id:int}"), ValidateAntiForgeryToken]
@@ -50,14 +62,17 @@ public partial class AdminController {
 
  // ---- Đơn hàng ----
  [HttpGet("orders")]
- public async Task<IActionResult> Orders(string? status, int? customer) {
+ public async Task<IActionResult> Orders(string? q, string? status, int? customer, [FromQuery(Name = "from")] DateTime? df, [FromQuery(Name = "to")] DateTime? dt) {
   var all = await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).OrderByDescending(o => o.CreatedAt).ToListAsync();
-  ViewBag.Counts = OrderStatus.All.ToDictionary(s => s, s => all.Count(o => o.Status == s));
-  ViewBag.Total = all.Count; ViewBag.Status = status; ViewBag.CustomerId = customer;
   IEnumerable<Order> r = all;
-  if (!string.IsNullOrEmpty(status)) r = r.Where(o => o.Status == status);
-  if (customer is int cid) r = r.Where(o => o.CustomerId == cid);
-  return View(r.ToList());
+  if (!string.IsNullOrWhiteSpace(q)) { var t = q.Trim().TrimStart('#'); r = r.Where(o => o.Id.ToString() == t || Has(o.Customer?.FullName, t) || Has(o.Customer?.Phone, t)); }
+  if (customer is int cid) { r = r.Where(o => o.CustomerId == cid); ViewBag.CustomerName = (await db.Customers.AsNoTracking().FirstOrDefaultAsync(c => c.Id == cid))?.FullName ?? $"#{cid}"; }
+  if (df is DateTime a) r = r.Where(o => o.CreatedAt >= a.Date);
+  if (dt is DateTime b) r = r.Where(o => o.CreatedAt < b.Date.AddDays(1));
+  var scoped = r.ToList(); // đếm theo trạng thái trong phạm vi các bộ lọc khác
+  ViewBag.Counts = OrderStatus.All.ToDictionary(s => s, s => scoped.Count(o => o.Status == s));
+  ViewBag.Total = scoped.Count; ViewBag.Q = q; ViewBag.Status = status; ViewBag.CustomerId = customer; ViewBag.From = df?.ToString("yyyy-MM-dd"); ViewBag.To = dt?.ToString("yyyy-MM-dd");
+  return View(string.IsNullOrEmpty(status) ? scoped : scoped.Where(o => o.Status == status).ToList());
  }
 
  [HttpGet("orders/{id:int}")]
@@ -66,14 +81,20 @@ public partial class AdminController {
   return o is null ? NotFound() : View(o);
  }
 
+ // Nhân viên xác nhận đơn = chuyển "Mới" → "Đã xác nhận"; các bước sau đi tuần tự, hủy được tới trước khi hoàn thành.
  [HttpPost("orders/{id:int}/status"), ValidateAntiForgeryToken]
- public async Task<IActionResult> SetOrderStatus(int id, string status) {
+ public async Task<IActionResult> SetOrderStatus(int id, string status, string? back) {
   var o = await db.Orders.FindAsync(id);
   if (o is null) return NotFound();
   if (!OrderStatus.All.Contains(status)) return BadRequest();
-  o.Status = status; await db.SaveChangesAsync();
-  TempData["Msg"] = $"Đơn #{o.Id} → {status}.";
-  return RedirectToAction(nameof(OrderDetail), new { id });
+  if (!OrderStatus.Allowed(o.Status, status)) TempData["Msg"] = $"Không thể chuyển đơn #{o.Id} từ “{o.Status}” sang “{status}”.";
+  else {
+   o.Status = status;
+   if (status == OrderStatus.Confirmed) (o.ConfirmedBy, o.ConfirmedAt) = (Me, DateTime.Now);
+   await db.SaveChangesAsync();
+   TempData["Msg"] = status == OrderStatus.Confirmed ? $"{Me} đã xác nhận đơn #{o.Id}." : $"Đơn #{o.Id} → {status}.";
+  }
+  return Url.IsLocalUrl(back) ? Redirect(back!) : RedirectToAction(nameof(OrderDetail), new { id });
  }
 
  [HttpGet("orders/create")]
@@ -83,59 +104,18 @@ public partial class AdminController {
  public async Task<IActionResult> CreateOrder(int customerId, string? note, Dictionary<int, int>? qty) {
   var customer = await db.Customers.FindAsync(customerId);
   var products = await db.Products.AsNoTracking().ToListAsync();
-  var o = new Order { CustomerId = customerId, Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim() };
+  var o = new Order { CustomerId = customerId, CreatedBy = Me, Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim() };
   foreach (var p in products) if (qty is not null && qty.TryGetValue(p.Id, out var n) && n > 0) o.Items.Add(new OrderItem { ProductId = p.Id, ProductName = p.Name, UnitPrice = p.Price, Quantity = Math.Min(n, 99) });
   string? err = customer is null ? "Hãy chọn khách hàng." : customer.IsLocked ? "Tài khoản khách này đang bị khóa." : o.Items.Count == 0 ? "Hãy chọn ít nhất một chiếc bánh." : null;
   if (err is not null) { ViewBag.Error = err; ViewBag.Selected = customerId; ViewBag.Note = note; await LoadOrderForm(); return View("OrderForm"); }
   db.Orders.Add(o); await db.SaveChangesAsync();
-  TempData["Msg"] = $"Đã tạo đơn #{o.Id}.";
+  TempData["Msg"] = $"Đã tạo đơn #{o.Id}. Đơn đang chờ nhân viên xác nhận.";
   return RedirectToAction(nameof(OrderDetail), new { id = o.Id });
  }
 
  async Task LoadOrderForm() {
   ViewBag.Customers = await db.Customers.AsNoTracking().Where(c => !c.IsLocked).OrderBy(c => c.FullName).ToListAsync();
   ViewBag.Products = await db.Products.AsNoTracking().OrderBy(p => p.Id).ToListAsync();
- }
-
- // ---- Nhập hàng ----
- [HttpGet("purchases")]
- public async Task<IActionResult> Purchases() => View(await db.Purchases.AsNoTracking().Include(p => p.Items).OrderByDescending(p => p.CreatedAt).ToListAsync());
-
- [HttpGet("purchases/{id:int}")]
- public async Task<IActionResult> PurchaseDetail(int id) {
-  var p = await db.Purchases.AsNoTracking().Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id);
-  return p is null ? NotFound() : View(p);
- }
-
- [HttpGet("purchases/create")]
- public IActionResult CreatePurchase() => View("PurchaseForm");
-
- [HttpPost("purchases/create"), ValidateAntiForgeryToken]
- public async Task<IActionResult> CreatePurchase(string? supplier, string? note, List<PurchaseRow>? rows) {
-  var p = new Purchase { Supplier = supplier?.Trim() ?? "", Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim() };
-  foreach (var r in rows ?? []) if (!string.IsNullOrWhiteSpace(r.ItemName) && r.Quantity > 0 && r.UnitCost >= 0) p.Items.Add(new PurchaseItem { ItemName = r.ItemName.Trim(), Unit = r.Unit?.Trim() ?? "", Quantity = r.Quantity, UnitCost = r.UnitCost });
-  string? err = p.Supplier.Length is 0 or > 80 ? "Nhập tên nhà cung cấp (tối đa 80 ký tự)." : p.Items.Count == 0 ? "Hãy nhập ít nhất một dòng hàng hợp lệ (tên, số lượng > 0)." : null;
-  if (err is not null) { ViewBag.Error = err; ViewBag.Supplier = supplier; ViewBag.Note = note; ViewBag.Rows = rows; return View("PurchaseForm"); }
-  db.Purchases.Add(p); await db.SaveChangesAsync();
-  TempData["Msg"] = $"Đã lưu phiếu nhập #{p.Id}.";
-  return RedirectToAction(nameof(PurchaseDetail), new { id = p.Id });
- }
-
- // ---- Báo cáo & thống kê ----
- [HttpGet("reports")]
- public async Task<IActionResult> Reports(int days = 30) {
-  days = days is 7 or 30 or 90 ? days : 30;
-  var from = DateTime.Today.AddDays(-(days - 1));
-  var orders = (await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).ToListAsync()).Where(o => o.CreatedAt >= from).ToList();
-  var live = orders.Where(o => o.Status != OrderStatus.Cancelled).ToList();
-  var purchases = (await db.Purchases.AsNoTracking().Include(p => p.Items).ToListAsync()).Where(p => p.CreatedAt >= from).ToList();
-  var revenue = live.Sum(o => o.Total); var cost = purchases.Sum(p => p.Total);
-  return View(new ReportVm {
-   Days = days, Revenue = revenue, Cost = cost, Profit = revenue - cost, OrderCount = live.Count, AvgOrder = live.Count == 0 ? 0 : revenue / live.Count,
-   Series = Series(live, from, days), TopProducts = TopProducts(live, 5),
-   TopCustomers = live.GroupBy(o => o.Customer?.FullName ?? "—").Select(g => new NamedValue(g.Key, g.Sum(o => o.Total), g.Count())).OrderByDescending(n => n.Value).Take(5).ToList(),
-   ByStatus = OrderStatus.All.Select(s => new NamedValue(s, orders.Where(o => o.Status == s).Sum(o => o.Total), orders.Count(o => o.Status == s))).ToList(),
-   BySupplier = purchases.GroupBy(p => p.Supplier).Select(g => new NamedValue(g.Key, g.Sum(p => p.Total), g.Count())).OrderByDescending(n => n.Value).ToList(),
-  });
+  ViewBag.Stock = (await StockRows()).ToDictionary(s => s.Product.Id, s => s.Left);
  }
 }

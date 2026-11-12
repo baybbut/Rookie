@@ -1,0 +1,5 @@
+@model DateFilter
+@* Lọc cụ thể theo ngày / tháng / năm; để trống mục nào thì không lọc mục đó. *@
+<label>Ngày<select name="day"><option value="">Tất cả</option>@for (var d = 1; d <= 31; d++) {<option value="@d" selected="@(Model.Day == d)">@d</option>}</select></label>
+<label>Tháng<select name="month"><option value="">Tất cả</option>@for (var m = 1; m <= 12; m++) {<option value="@m" selected="@(Model.Month == m)">Tháng @m</option>}</select></label>
+<label>Năm<input type="number" name="year" min="2000" max="2100" value="@Model.Year" placeholder="@DateTime.Today.Year"/></label>

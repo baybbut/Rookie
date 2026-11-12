@@ -2,17 +2,52 @@
 @{
  ViewData["Title"] = "Báo cáo và thống kê"; ViewData["Nav"] = "reports";
  decimal Max(List<NamedValue> l) => Math.Max(1, l.Select(x => x.Value).DefaultIfEmpty(1).Max());
+ var print = ViewBag.Print == true; var today = DateTime.Today;
+ var qs = Model.Type switch { "month" => $"type=month&month={Model.Month}", "year" => $"type=year&year={Model.Year}", _ => $"type=range&from={Model.From:yyyy-MM-dd}&to={Model.To:yyyy-MM-dd}" };
+ string Quick(int days) => $"/admin/reports?type=range&from={today.AddDays(-(days - 1)):yyyy-MM-dd}&to={today:yyyy-MM-dd}";
+ var unitCap = Model.PeriodUnit == "tháng" ? "Tháng" : "Ngày";
+ var maxDiscard = Math.Max(1, Model.Discards.Select(x => x.Quantity).DefaultIfEmpty(1).Max());
 }
-<div class="admin-head"><div><div class="eyebrow">REPORTS</div><h1>Báo cáo &amp; thống kê</h1></div>
- <div class="tabs filters">@foreach (var d in new[] { 7, 30, 90 }) {<a class="@(Model.Days == d ? "active" : "")" href="/admin/reports?days=@d">@d ngày</a>}</div></div>
+<div class="admin-head"><div><div class="eyebrow">REPORTS</div><h1>Báo cáo &amp; thống kê</h1><p class="period">Kỳ báo cáo: <b>@Model.Title</b></p></div>
+ @if (!print) {<div class="head-actions"><a class="ghost" href="/admin/reports/export?@qs">⬇ Xuất Excel</a><a class="ghost" href="/admin/reports?@qs&print=true" target="_blank" rel="noopener">⬇ Xuất PDF</a></div>}
+</div>
+@if (!print) {
+ <div class="tabs filters" role="navigation" aria-label="Kiểu kỳ báo cáo">
+  <a class="@(Model.Type == "range" ? "active" : "")" href="/admin/reports?type=range">Theo ngày</a>
+  <a class="@(Model.Type == "month" ? "active" : "")" href="/admin/reports?type=month">Theo tháng</a>
+  <a class="@(Model.Type == "year" ? "active" : "")" href="/admin/reports?type=year">Theo năm</a>
+ </div>
+ <form class="filter-bar" method="get" aria-label="Chọn kỳ báo cáo">
+  <input type="hidden" name="type" value="@Model.Type"/>
+  @if (Model.Type == "range") {
+   <label>Từ ngày<input type="date" name="from" value="@Model.From.ToString("yyyy-MM-dd")" max="@today.ToString("yyyy-MM-dd")"/></label>
+   <label>Đến ngày<input type="date" name="to" value="@Model.To.ToString("yyyy-MM-dd")" max="@today.ToString("yyyy-MM-dd")"/></label>
+   <div class="filter-actions"><a class="ghost" href="@Quick(7)">7 ngày</a><a class="ghost" href="@Quick(30)">30 ngày</a><a class="ghost" href="@Quick(90)">90 ngày</a></div>
+  } else if (Model.Type == "month") {
+   <label>Tháng<input type="month" name="month" value="@Model.Month"/></label>
+  } else {
+   <label>Năm<input type="number" name="year" min="2000" max="2100" value="@Model.Year"/></label>
+  }
+  <div class="filter-actions"><button class="ghost on">Xem báo cáo</button></div>
+ </form>
+}
 <div class="stats">
  <div class="stat"><small>Doanh thu</small><b>@Fmt.Vnd(Model.Revenue)</b></div>
- <div class="stat"><small>Chi nhập hàng</small><b>@Fmt.Vnd(Model.Cost)</b></div>
- <div class="stat"><small>Lãi tạm tính (thu − nhập)</small><b>@Fmt.Vnd(Model.Profit)</b></div>
  <div class="stat"><small>Số đơn (không tính đã hủy)</small><b>@Model.OrderCount</b></div>
  <div class="stat"><small>Giá trị TB / đơn</small><b>@Fmt.Vnd(Model.AvgOrder)</b></div>
+ <div class="stat"><small>Bánh hủy</small><b>@Model.Wasted</b></div>
+ <div class="stat"><small>Giá trị bánh hủy</small><b>@Fmt.Vnd(Model.WastedValue)</b></div>
 </div>
-<section class="panel wide"><h2>Doanh thu theo ngày</h2><partial name="_RevenueChart" model="Model.Series"/></section>
+<section class="panel wide"><h2>Doanh thu theo @Model.PeriodUnit</h2><partial name="_RevenueChart" model="Model.Series"/></section>
+<section class="panel wide"><h2>Chi tiết doanh thu theo @Model.PeriodUnit</h2>
+ <div class="table-wrap flat scroll"><table>
+  <thead><tr><th>@unitCap</th><th class="num">Số đơn</th><th class="num">Doanh thu</th></tr></thead>
+  <tbody>
+  @foreach (var d in Model.Series) {<tr class="@(d.Orders == 0 ? "zero" : "")"><td>@(d.Label ?? Fmt.Day(d.Day))</td><td class="num">@d.Orders</td><td class="num">@Fmt.Vnd(d.Revenue)</td></tr>}
+  <tr class="sum"><td><b>Tổng</b></td><td class="num"><b>@Model.OrderCount</b></td><td class="num"><b>@Fmt.Vnd(Model.Revenue)</b></td></tr>
+  </tbody>
+ </table></div>
+</section>
 <div class="panels">
  <section class="panel"><h2>Bánh bán chạy (theo doanh thu)</h2>
   @{ var mp = Max(Model.TopProducts); }
@@ -24,11 +59,17 @@
   @foreach (var t in Model.TopCustomers) {<div class="bar-row"><span>@t.Name</span><div class="bar"><i style="width:@((int)(t.Value * 100 / mc))%"></i></div><b>@t.Count</b></div>}
   @if (Model.TopCustomers.Count == 0) {<p class="hint">Chưa có dữ liệu.</p>}
  </section>
- <section class="panel"><h2>Đơn theo trạng thái</h2>
-  <table class="mini"><tbody>@foreach (var s in Model.ByStatus) {<tr><td><span class="st @Fmt.StatusClass(s.Name)">@s.Name</span></td><td class="num">@s.Count đơn</td><td class="num">@Fmt.Vnd(s.Value)</td></tr>}</tbody></table>
- </section>
- <section class="panel"><h2>Nhập hàng theo nhà cung cấp</h2>
-  <table class="mini"><tbody>@foreach (var s in Model.BySupplier) {<tr><td>@s.Name</td><td class="num">@s.Count phiếu</td><td class="num">@Fmt.Vnd(s.Value)</td></tr>}</tbody></table>
-  @if (Model.BySupplier.Count == 0) {<p class="hint">Chưa có phiếu nhập.</p>}
- </section>
 </div>
+<section class="panel wide"><h2>Bánh hủy theo @Model.PeriodUnit</h2>
+ @if (Model.Discards.Count == 0) {<p class="hint">Không có bánh hủy trong kỳ này.</p>}
+ else {
+  <div class="table-wrap flat scroll"><table>
+   <thead><tr><th>@unitCap</th><th>Số bánh hủy</th><th class="num">Số lượng</th><th class="num">Giá trị</th></tr></thead>
+   <tbody>
+   @foreach (var d in Model.Discards) {<tr><td>@d.Label</td><td class="wbar"><div class="bar"><i style="width:@(d.Quantity * 100 / maxDiscard)%"></i></div></td><td class="num">@d.Quantity</td><td class="num">@Fmt.Vnd(d.Value)</td></tr>}
+   <tr class="sum"><td colspan="2"><b>Tổng</b></td><td class="num"><b>@Model.Wasted</b></td><td class="num"><b>@Fmt.Vnd(Model.WastedValue)</b></td></tr>
+   </tbody>
+  </table></div>
+ }
+</section>
+@if (print) {<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),300))</script>}
