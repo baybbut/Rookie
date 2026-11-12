@@ -1,0 +1,11 @@
+@{ ViewData["Title"] = "Tạo đơn hàng"; ViewData["Nav"] = "orders"; var customers = (List<Customer>)ViewBag.Customers; var products = (List<Product>)ViewBag.Products; }
+<div class="admin-head"><div><div class="eyebrow">NEW ORDER</div><h1>Tạo đơn hàng</h1></div><a class="ghost" asp-action="Orders">← Quay lại</a></div>
+<form class="admin-form" method="post" asp-action="CreateOrder">
+ @if (ViewBag.Error is string err) {<p class="alert">@err</p>}
+ <label>Khách hàng<select name="customerId" required><option value="">— Chọn khách —</option>@foreach (var c in customers) {<option value="@c.Id" selected="@(ViewBag.Selected is int s && s == c.Id)">@c.FullName · @c.Phone</option>}</select></label>
+ <fieldset><legend>Số lượng từng loại bánh</legend>
+  @foreach (var p in products) {<div class="qty-row"><span>@p.Name<small>@Fmt.Vnd(p.Price)</small></span><input type="number" name="qty[@p.Id]" min="0" max="99" value="0" aria-label="Số lượng @p.Name"/></div>}
+ </fieldset>
+ <label>Ghi chú<input name="note" maxlength="200" value="@ViewBag.Note"/></label>
+ <div class="form-actions"><button class="btn" type="submit">Tạo đơn <span>↗</span></button></div>
+</form>

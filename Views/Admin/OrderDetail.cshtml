@@ -1,0 +1,19 @@
+@model Order
+@{ ViewData["Title"] = "Đơn #" + Model.Id; ViewData["Nav"] = "orders"; }
+<div class="admin-head"><div><div class="eyebrow">ORDER</div><h1>Đơn #@Model.Id <span class="st @Fmt.StatusClass(Model.Status)">@Model.Status</span></h1></div><a class="ghost" asp-action="Orders">← Quay lại</a></div>
+@if (TempData["Msg"] is string msg) {<p class="notice" role="status">@msg</p>}
+<div class="panels">
+ <section class="panel"><h2>Khách hàng</h2><p><b>@Model.Customer?.FullName</b></p><p class="hint">@Model.Customer?.Email · @Model.Customer?.Phone<br/>@Model.Customer?.Address</p><p class="hint">Đặt lúc @Fmt.Date(Model.CreatedAt)</p>@if (!string.IsNullOrEmpty(Model.Note)) {<p class="hint">Ghi chú: @Model.Note</p>}</section>
+ <section class="panel"><h2>Cập nhật trạng thái</h2>
+  <form class="status-form" method="post" asp-action="SetOrderStatus" asp-route-id="@Model.Id">
+   @foreach (var s in OrderStatus.All) {<button class="ghost @(s == Model.Status ? "on" : "")" name="status" value="@s">@s</button>}
+  </form>
+ </section>
+</div>
+<div class="table-wrap"><table>
+ <thead><tr><th>Sản phẩm</th><th class="num">Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th></tr></thead>
+ <tbody>
+ @foreach (var i in Model.Items) {<tr><td>@i.ProductName</td><td class="num">@Fmt.Vnd(i.UnitPrice)</td><td class="num">@i.Quantity</td><td class="num">@Fmt.Vnd(i.Subtotal)</td></tr>}
+ <tr class="sum"><td colspan="3" class="num"><b>Tổng cộng</b></td><td class="num"><b>@Fmt.Vnd(Model.Total)</b></td></tr>
+ </tbody>
+</table></div>

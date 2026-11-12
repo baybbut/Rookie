@@ -15,6 +15,8 @@ builder.Services.AddScoped<Rookie.Services.CartService>();
 builder.Services.AddDbContext<CommerceDbContext>(o=>o.UseSqlite(builder.Configuration.GetConnectionString("Commerce")??"Data Source=rookie-commerce.db"));
 builder.Services.AddRateLimiter(o=>{o.RejectionStatusCode=429;o.AddPolicy("auth",context=>System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"local",_=>new System.Threading.RateLimiting.FixedWindowRateLimiterOptions{PermitLimit=10,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));});
 builder.Services.AddDbContext<ShopDbContext>(o => o.UseSqlite(builder.Configuration.GetConnectionString("Shop") ?? "Data Source=rookie.db"));
+builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(o => { o.LoginPath = "/admin/login"; o.Cookie.Name = "rookie-admin"; o.ExpireTimeSpan = TimeSpan.FromHours(8); });
+builder.Services.AddAuthorization();
 var app = builder.Build();
 using (var scope = app.Services.CreateScope()) { var db = scope.ServiceProvider.GetRequiredService<ShopDbContext>(); db.Database.EnsureCreated(); var commerce=scope.ServiceProvider.GetRequiredService<CommerceDbContext>();commerce.Database.EnsureCreated();
  var conn=commerce.Database.GetDbConnection();conn.Open();

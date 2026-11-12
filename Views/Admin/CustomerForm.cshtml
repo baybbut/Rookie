@@ -1,0 +1,12 @@
+@model Customer
+@{ var isNew = Model.Id == 0; ViewData["Title"] = isNew ? "Thêm khách hàng" : "Sửa khách hàng"; ViewData["Nav"] = "customers"; }
+<div class="admin-head"><div><div class="eyebrow">@(isNew ? "NEW CUSTOMER" : "EDIT CUSTOMER")</div><h1>@(isNew ? "Thêm khách hàng" : Model.FullName)</h1></div><a class="ghost" asp-action="Customers">← Quay lại</a></div>
+<form class="admin-form" method="post" asp-action="@(isNew ? "CreateCustomer" : "EditCustomer")" asp-route-id="@(isNew ? null : Model.Id)">
+ <label>Họ và tên<input asp-for="FullName" maxlength="80"/><span asp-validation-for="FullName" class="field-error"></span></label>
+ <div class="row">
+  <label>Email<input asp-for="Email" type="email" maxlength="120"/><span asp-validation-for="Email" class="field-error"></span></label>
+  <label>Số điện thoại<input asp-for="Phone" type="tel" maxlength="20"/><span asp-validation-for="Phone" class="field-error"></span></label>
+ </div>
+ <label>Địa chỉ<input asp-for="Address" maxlength="200"/><span asp-validation-for="Address" class="field-error"></span></label>
+ <div class="form-actions"><button class="btn" type="submit">@(isNew ? "Thêm khách hàng" : "Lưu thay đổi") <span>↗</span></button></div>
+</form>

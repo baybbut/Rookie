@@ -1,0 +1,26 @@
+@model DashboardVm
+@{ ViewData["Title"] = "Trang chủ"; ViewData["Nav"] = "dashboard"; var maxTop = Math.Max(1, Model.TopProducts.Select(t => t.Value).DefaultIfEmpty(1).Max()); }
+<div class="admin-head"><div><div class="eyebrow">DASHBOARD</div><h1>Tiệm bánh hôm nay</h1></div><div class="head-actions"><a class="ghost" asp-action="CreateOrder">+ Tạo đơn</a><a class="btn" asp-action="Create">Thêm bánh mới <span>+</span></a></div></div>
+<div class="stats">
+ <div class="stat"><small>Doanh thu hôm nay</small><b>@Fmt.Vnd(Model.RevenueToday)</b></div>
+ <div class="stat"><small>Doanh thu tháng này</small><b>@Fmt.Vnd(Model.RevenueMonth)</b></div>
+ <div class="stat"><small>Chi nhập hàng tháng này</small><b>@Fmt.Vnd(Model.PurchaseMonth)</b></div>
+ <div class="stat"><small>Đơn mới chờ xử lý</small><b>@Model.NewOrders</b></div>
+ <div class="stat"><small>Đơn đang xử lý</small><b>@Model.OpenOrders</b></div>
+ <div class="stat"><small>Khách hàng</small><b>@Model.Customers</b></div>
+ <div class="stat"><small>Sản phẩm</small><b>@Model.Products</b></div>
+</div>
+<div class="panels">
+ <section class="panel"><h2>Doanh thu 7 ngày qua</h2><partial name="_RevenueChart" model="Model.Days"/></section>
+ <section class="panel"><h2>Bán chạy (30 ngày)</h2>
+  @foreach (var t in Model.TopProducts) {<div class="bar-row"><span>@t.Name</span><div class="bar"><i style="width:@((int)(t.Value * 100 / maxTop))%"></i></div><b>@t.Count</b></div>}
+  @if (Model.TopProducts.Count == 0) {<p class="hint">Chưa có đơn hàng.</p>}
+ </section>
+</div>
+<section class="panel wide"><h2>Đơn hàng gần đây</h2>
+ <div class="table-wrap flat"><table><thead><tr><th>Mã</th><th>Khách</th><th>Thời gian</th><th class="num">Tổng</th><th>Trạng thái</th></tr></thead><tbody>
+ @foreach (var o in Model.Recent) {<tr><td><a class="text-link" asp-action="OrderDetail" asp-route-id="@o.Id">#@o.Id</a></td><td>@o.Customer?.FullName</td><td>@Fmt.Date(o.CreatedAt)</td><td class="num">@Fmt.Vnd(o.Total)</td><td><span class="st @Fmt.StatusClass(o.Status)">@o.Status</span></td></tr>}
+ @if (Model.Recent.Count == 0) {<tr><td colspan="5" class="empty">Chưa có đơn hàng.</td></tr>}
+ </tbody></table></div>
+ <a class="text-link" asp-action="Orders">Xem tất cả đơn hàng ↗</a>
+</section>
