@@ -1,0 +1,13 @@
+@model Staff
+@{ var isNew = Model.Id == 0; ViewData["Title"] = isNew ? "Thêm nhân sự" : "Sửa nhân sự"; ViewData["Nav"] = "staff"; }
+<div class="admin-head"><div><div class="eyebrow">@(isNew ? "NEW STAFF" : "EDIT STAFF")</div><h1>@(isNew ? "Thêm nhân sự" : Model.FullName)</h1></div><a class="ghost" asp-action="StaffList">← Quay lại</a></div>
+<form class="admin-form" method="post" asp-action="@(isNew ? "CreateStaff" : "EditStaff")" asp-route-id="@(isNew ? null : Model.Id)" autocomplete="off">
+ <label>Họ và tên<input asp-for="FullName" maxlength="80"/><span asp-validation-for="FullName" class="field-error"></span></label>
+ <div class="row">
+  <label>Tên đăng nhập<input asp-for="Username" maxlength="30" autocapitalize="none" readonly="@(!isNew)" placeholder="VD: thuha"/>@if (!isNew) {<small>Không đổi được tên đăng nhập.</small>}<span asp-validation-for="Username" class="field-error"></span></label>
+  <label>Số điện thoại<input asp-for="Phone" type="tel" maxlength="20"/><span asp-validation-for="Phone" class="field-error"></span></label>
+ </div>
+ <label>Vai trò<select asp-for="Role">@foreach (var r in StaffRole.All) {<option value="@r" selected="@(r == Model.Role)">@r</option>}</select><small>“Quản trị” được quản lý nhân sự; “Nhân viên” dùng các chức năng còn lại.</small><span asp-validation-for="Role" class="field-error"></span></label>
+ <label>@(isNew ? "Mật khẩu" : "Mật khẩu mới")<input name="password" type="password" maxlength="64" autocomplete="new-password" @(isNew ? "required" : "") placeholder="@(isNew ? "Tối thiểu 6 ký tự" : "Để trống nếu không đổi")"/><span class="field-error">@Html.ValidationMessage("password")</span></label>
+ <div class="form-actions"><button class="btn" type="submit">@(isNew ? "Thêm nhân sự" : "Lưu thay đổi") <span>↗</span></button></div>
+</form>

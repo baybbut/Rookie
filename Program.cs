@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Rookie.Data;
 var builder = WebApplication.CreateBuilder(args);
@@ -15,9 +17,21 @@ builder.Services.AddScoped<Rookie.Services.CartService>();
 builder.Services.AddDbContext<CommerceDbContext>(o=>o.UseSqlite(builder.Configuration.GetConnectionString("Commerce")??"Data Source=rookie-commerce.db"));
 builder.Services.AddRateLimiter(o=>{o.RejectionStatusCode=429;o.AddPolicy("auth",context=>System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"local",_=>new System.Threading.RateLimiting.FixedWindowRateLimiterOptions{PermitLimit=10,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));});
 builder.Services.AddDbContext<ShopDbContext>(o => o.UseSqlite(builder.Configuration.GetConnectionString("Shop") ?? "Data Source=rookie.db"));
-builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(o => { o.LoginPath = "/admin/login"; o.Cookie.Name = "rookie-admin"; o.ExpireTimeSpan = TimeSpan.FromHours(8); });
+builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(o => {
+ o.LoginPath = "/admin/login"; o.AccessDeniedPath = "/admin"; o.Cookie.Name = "rookie-staff"; o.ExpireTimeSpan = TimeSpan.FromHours(8);
+ // Nhân viên bị xóa/khóa thì phiên đang mở bị hủy ngay.
+ o.Events.OnValidatePrincipal = async ctx => {
+  var s = int.TryParse(ctx.Principal?.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? await ctx.HttpContext.RequestServices.GetRequiredService<ShopDbContext>().Staffs.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id) : null;
+  if (s is null || s.IsLocked) { ctx.RejectPrincipal(); await ctx.HttpContext.SignOutAsync(); }
+ };
+});
 builder.Services.AddAuthorization();
 var app = builder.Build();
+using (var scope = app.Services.CreateScope()) {
+ // Mật khẩu quản trị lấy từ cấu hình Admin:Password; riêng môi trường Development có mặc định "admin".
+ DbInit.Prepare(scope.ServiceProvider.GetRequiredService<ShopDbContext>(), app.Configuration["Admin:Password"] ?? (app.Environment.IsDevelopment() ? "admin" : null), app.Environment.IsDevelopment(), m => app.Logger.LogWarning("{Msg}", m));
+}
+app.UseStaticFiles(); app.UseRouting(); app.UseAuthentication(); app.UseAuthorization();
 using (var scope = app.Services.CreateScope()) { var db = scope.ServiceProvider.GetRequiredService<ShopDbContext>(); db.Database.EnsureCreated(); var commerce=scope.ServiceProvider.GetRequiredService<CommerceDbContext>();commerce.Database.EnsureCreated();
  var conn=commerce.Database.GetDbConnection();conn.Open();
  using(var cmd=conn.CreateCommand()) {

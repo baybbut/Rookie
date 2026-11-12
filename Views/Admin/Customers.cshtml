@@ -1,8 +1,13 @@
 @model List<Customer>
-@{ ViewData["Title"] = "Quản lý tài khoản khách hàng"; ViewData["Nav"] = "customers"; }
-<div class="admin-head"><div><div class="eyebrow">CUSTOMERS</div><h1>Tài khoản khách hàng</h1></div><a class="btn" asp-action="CreateCustomer">Thêm khách hàng <span>+</span></a></div>
+@{ ViewData["Title"] = "Quản lý khách hàng"; ViewData["Nav"] = "customers"; var anyFilter = new[] { ViewBag.Name, ViewBag.Contact, ViewBag.Status }.Any(x => !string.IsNullOrEmpty((string?)x)); }
+<div class="admin-head"><div><div class="eyebrow">CUSTOMERS</div><h1>Quản lý khách hàng</h1></div><a class="btn" asp-action="CreateCustomer">Thêm khách hàng <span>+</span></a></div>
 @if (TempData["Msg"] is string msg) {<p class="notice" role="status">@msg</p>}
-<form class="admin-search" method="get"><input name="q" value="@ViewBag.Q" placeholder="Tìm theo tên, email, số điện thoại…" aria-label="Tìm khách hàng"/><button class="ghost">Tìm</button>@if (!string.IsNullOrEmpty((string?)ViewBag.Q)) {<a class="ghost" href="/admin/customers">Xóa lọc</a>}</form>
+<form class="filter-bar" method="get" aria-label="Lọc khách hàng">
+ <label>Họ tên<input name="name" value="@ViewBag.Name" placeholder="VD: Minh Anh"/></label>
+ <label>Email / số điện thoại<input name="contact" value="@ViewBag.Contact" placeholder="VD: khach1@@example.com hoặc 0900…"/></label>
+ <label>Trạng thái<select name="status"><option value="">Tất cả</option><option value="active" selected="@((string?)ViewBag.Status == "active")">Hoạt động</option><option value="locked" selected="@((string?)ViewBag.Status == "locked")">Đã khóa</option></select></label>
+ <div class="filter-actions"><button class="ghost on">Lọc</button>@if (anyFilter) {<a class="ghost" href="/admin/customers">Xóa lọc</a>}</div>
+</form>
 <div class="table-wrap"><table>
  <thead><tr><th>Khách hàng</th><th>Liên hệ</th><th class="num">Đơn</th><th class="num">Đã chi</th><th>Trạng thái</th><th></th></tr></thead>
  <tbody>
@@ -14,7 +19,7 @@
    <td class="num">@c.Orders.Count</td><td class="num">@Fmt.Vnd(live.Sum(o => o.Total))</td>
    <td><span class="st @(c.IsLocked ? "st-cancel" : "st-done")">@(c.IsLocked ? "Đã khóa" : "Hoạt động")</span></td>
    <td class="actions"><a class="ghost" href="/admin/orders?customer=@c.Id">Đơn hàng</a> <a class="ghost" asp-action="EditCustomer" asp-route-id="@c.Id">Sửa</a>
-    <form method="post" asp-action="ToggleCustomerLock" asp-route-id="@c.Id"><button class="ghost @(c.IsLocked ? "" : "danger")">@(c.IsLocked ? "Mở khóa" : "Khóa")</button></form></td>
+    <form method="post" asp-action="ToggleCustomerLock" asp-route-id="@c.Id" data-confirm="@(c.IsLocked ? $"Mở khóa tài khoản “{c.FullName}”?" : $"Khóa tài khoản “{c.FullName}”? Khách sẽ không thể đặt đơn mới khi còn bị khóa.")"><button class="ghost @(c.IsLocked ? "" : "danger")">@(c.IsLocked ? "Mở khóa" : "Khóa")</button></form></td>
   </tr>
  }
  @if (Model.Count == 0) {<tr><td colspan="6" class="empty">Không có khách hàng nào.</td></tr>}
