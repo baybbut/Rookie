@@ -101,22 +101,23 @@ public record NamedValue(string Name, decimal Value, int Count);
 public record DiscardPoint(string Label, int Quantity, decimal Value);
 public record StockRow(Product Product, int In, int Sold, int Wasted) { public int Left => In - Sold - Wasted; }
 public record DateFilter(int? Day, int? Month, int? Year);
+// Property (không phải field) để Web API trả JSON và Swagger mô tả được cấu trúc.
 public class DashboardVm {
- public decimal RevenueToday, RevenueMonth, PurchaseMonth;
- public int NewOrders, OpenOrders, Customers, Products;
- public List<DayPoint> Days = [];
- public List<Order> Recent = [];
- public List<NamedValue> TopProducts = [];
+ public decimal RevenueToday { get; set; } public decimal RevenueMonth { get; set; } public decimal PurchaseMonth { get; set; }
+ public int NewOrders { get; set; } public int OpenOrders { get; set; } public int Customers { get; set; } public int Products { get; set; }
+ public List<DayPoint> Days { get; set; } = [];
+ public List<Order> Recent { get; set; } = [];
+ public List<NamedValue> TopProducts { get; set; } = [];
 }
 public class ReportVm {
- public string Type = "range", Title = "", Month = "", PeriodUnit = "ngày";
- public DateTime From, To;
- public int Year;
- public decimal Revenue, AvgOrder, WastedValue;
- public int OrderCount, Wasted;
- public List<DayPoint> Series = [];
- public List<NamedValue> TopProducts = [], TopCustomers = [];
- public List<DiscardPoint> Discards = [];
+ public string Type { get; set; } = "range"; public string Title { get; set; } = ""; public string Month { get; set; } = ""; public string PeriodUnit { get; set; } = "ngày";
+ public DateTime From { get; set; } public DateTime To { get; set; }
+ public int Year { get; set; }
+ public decimal Revenue { get; set; } public decimal AvgOrder { get; set; } public decimal WastedValue { get; set; }
+ public int OrderCount { get; set; } public int Wasted { get; set; }
+ public List<DayPoint> Series { get; set; } = [];
+ public List<NamedValue> TopProducts { get; set; } = []; public List<NamedValue> TopCustomers { get; set; } = [];
+ public List<DiscardPoint> Discards { get; set; } = [];
 }
 public static class Fmt {
  static readonly System.Globalization.CultureInfo Vn = System.Globalization.CultureInfo.GetCultureInfo("vi-VN");
