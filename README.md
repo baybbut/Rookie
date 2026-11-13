@@ -26,18 +26,18 @@ dotnet run --project Rookie.Admin
 - `/Orders`: lịch sử; `/Orders/Details/{id}`: chi tiết đơn của tài khoản đang đăng nhập.
 
 ## Dữ liệu và bảo mật
-`rookie.db` giữ nguyên dữ liệu bánh hiện có; `rookie-commerce.db` tự tạo riêng cho khách hàng, đơn và các dòng sản phẩm. Không xóa database bánh cũ để nâng cấp. Khi khởi động, ứng dụng kiểm tra schema và thêm cột UserName/index nếu database tài khoản cũ chưa có; tài khoản cũ vẫn đăng nhập bằng email. Cả hai file đều được gitignore. Có thể cấu hình đường dẫn qua `ConnectionStrings:Shop` và `ConnectionStrings:Commerce`. Đơn lưu bản chụp tên/giá/số lượng và thông tin nhận hàng tại thời điểm đặt.
+Khách hàng, đơn hàng, bánh, kho và nhân viên đều nằm chung trong `rookie.db` (gitignore), dùng chung giữa trang khách, trang `/admin` và app WinForms: đơn khách đặt trên web hiện ngay ở trạng thái “Mới” để nhân viên xác nhận. Đường dẫn cấu hình qua `ConnectionStrings:Shop`. Khi đổi model, `DbInit.SchemaVersion` tăng và `rookie.db` cũ được đổi tên thành `rookie.db.bak-*` rồi tạo lại kèm dữ liệu mẫu (khách mẫu `khach1@example.com` … mật khẩu `123456`). File `rookie-commerce.db` của bản cũ không còn được dùng; tài khoản/đơn trong đó không tự chuyển sang. Đơn lưu bản chụp tên/giá/số lượng và thông tin nhận hàng tại thời điểm đặt.
 
-Mật khẩu được hash bằng ASP.NET Core PasswordHasher; xác thực cookie, chống CSRF cho POST, giới hạn thử đăng nhập/đăng ký theo IP. Đơn được kiểm tra quyền sở hữu. Giá được truy vấn lại từ database; yêu cầu checkout có khóa chống tạo trùng. Cookie xác thực không chứa mật khẩu. Khi triển khai thực tế cần HTTPS, lưu Data Protection keys an toàn và cấu hình forwarded headers/rate limiting đúng cho reverse proxy.
+Mật khẩu khách và nhân viên được băm PBKDF2 (`Data/Pw.cs`); phiên khách và phiên nhân viên là hai cookie tách riêng; tài khoản khách bị khóa không đăng nhập hay đặt hàng được; chống CSRF cho POST, giới hạn thử đăng nhập/đăng ký theo IP. Đơn được kiểm tra quyền sở hữu. Giá được truy vấn lại từ database; yêu cầu checkout có khóa chống tạo trùng. Cookie xác thực không chứa mật khẩu. Khi triển khai thực tế cần HTTPS, lưu Data Protection keys an toàn và cấu hình forwarded headers/rate limiting đúng cho reverse proxy.
 
 Giỏ hàng lưu trong session phía server, tách theo tài khoản và dùng chung giữa các trang; session hiện dùng memory cache và hết hạn sau 8 giờ không hoạt động hoặc khi server khởi động lại. Giỏ localStorage phiên bản cũ không được nhập sang phiên bản này. Hồ sơ, địa chỉ và đơn tồn tại trong SQLite sau khi khởi động lại. Chỉ có một địa chỉ mặc định trong hồ sơ; có thể sửa địa chỉ cho từng đơn khi checkout.
 
-COD là phương thức duy nhất đang hoạt động; chưa tích hợp cổng thanh toán, email xác nhận, xác minh email, quên mật khẩu, quản trị trạng thái đơn, tồn kho hay phí giao hàng thực tế. Miễn phí giao hàng trong bản thử nghiệm; đặt hàng chưa trừ tiền. Mã giảm giá trên banner cũ chưa áp dụng, vì vậy banner hiện không quảng cáo giảm giá. Không coi bản này là hệ thống sẵn sàng vận hành thương mại. Ảnh Unsplash và font Google cần Internet; đánh giá/thông tin liên hệ là minh họa.
+COD là phương thức duy nhất đang hoạt động; chưa tích hợp cổng thanh toán, email xác nhận, xác minh email, quên mật khẩu hay phí giao hàng thực tế. Miễn phí giao hàng trong bản thử nghiệm; đặt hàng chưa trừ tiền. Mã giảm giá trên banner cũ chưa áp dụng, vì vậy banner hiện không quảng cáo giảm giá. Không coi bản này là hệ thống sẵn sàng vận hành thương mại. Ảnh Unsplash và font Google cần Internet; đánh giá/thông tin liên hệ là minh họa.
 
 ## Kiểm thử tích hợp
 Chạy server kiểm thử trong terminal riêng bằng database tạm, không dùng dữ liệu thật:
 ```sh
-ConnectionStrings__Shop="Data Source=/tmp/rookie-smoke-products.db" ConnectionStrings__Commerce="Data Source=/tmp/rookie-smoke-commerce.db" dotnet run --urls http://127.0.0.1:5081
+ConnectionStrings__Shop="Data Source=/tmp/rookie-smoke.db" dotnet run --urls http://127.0.0.1:5081
 ```
 Terminal khác (Python 3, không cần thư viện ngoài):
 ```sh

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Rookie.Data;
 using Rookie.Models;
 namespace Rookie.Controllers;
-[Authorize, Route("admin")]
+[Authorize(AuthenticationSchemes = Auth.Staff), Route("admin")]
 public partial class AdminController(ShopDbContext db) : Controller {
  // Tên nhân viên đang đăng nhập, ghi lại trên đơn/phiếu mình xử lý.
  string Me => User.Identity?.Name ?? "—";
@@ -21,7 +21,7 @@ public partial class AdminController(ShopDbContext db) : Controller {
   var s = string.IsNullOrEmpty(username) ? null : await db.Staffs.FirstOrDefaultAsync(x => x.Username == username);
   if (s is not null && !s.IsLocked && Pw.Verify(password ?? "", s.PasswordHash)) {
    var id = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, s.Id.ToString()), new Claim(ClaimTypes.Name, s.FullName), new Claim(ClaimTypes.Role, s.Role), new Claim("username", s.Username)], CookieAuthenticationDefaults.AuthenticationScheme);
-   await HttpContext.SignInAsync(new ClaimsPrincipal(id));
+   await HttpContext.SignInAsync(Auth.Staff, new ClaimsPrincipal(id));
    return Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl) : RedirectToAction(nameof(Index));
   }
   ViewBag.ReturnUrl = returnUrl; ViewBag.Disabled = !await db.Staffs.AnyAsync(); ViewBag.Username = username;
@@ -30,7 +30,7 @@ public partial class AdminController(ShopDbContext db) : Controller {
  }
 
  [HttpPost("logout"), ValidateAntiForgeryToken]
- public async Task<IActionResult> Logout() { await HttpContext.SignOutAsync(); return RedirectToAction(nameof(Login)); }
+ public async Task<IActionResult> Logout() { await HttpContext.SignOutAsync(Auth.Staff); return RedirectToAction(nameof(Login)); }
 
  [HttpGet("")]
  public async Task<IActionResult> Index() {
