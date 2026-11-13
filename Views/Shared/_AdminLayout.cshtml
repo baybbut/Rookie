@@ -1,5 +1,5 @@
 ﻿@{
- var authed = User.Identity?.IsAuthenticated == true;
+ var authed = User.Identity?.IsAuthenticated == true && User.Identity.AuthenticationType == Rookie.Controllers.Auth.Staff;
  var nav = ViewData["Nav"] as string;
  string Cls(string key) => nav == key ? "active" : "";
  var meName = User.Identity?.Name ?? "";
