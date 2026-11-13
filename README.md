@@ -24,11 +24,13 @@ npm run build      # build lại wwwroot/js/islands/islands.js; hoặc `npm run 
 Sau khi build, tải lại trang. Nhớ commit cả file `islands.js` mới. Các island gọi `/api/cart` bằng chính cookie đăng nhập của khách (không dùng JWT), kèm token chống CSRF lấy từ trang.
 
 ## Ứng dụng quản trị WinForms
-`Rookie.Admin/` là app quản trị WinForms (Windows, .NET 8) dùng chung model và file `rookie.db` với web, nên dữ liệu hai bên luôn khớp. Web admin (`/admin`) vẫn còn nguyên.
+`Rookie.Admin/` là app quản trị WinForms (Windows, .NET 8). App **không mở database**: đăng nhập và mọi thao tác đều gọi Web API (`/api/auth/staff`, `/api/admin/...`) bằng JWT. Vì vậy nghiệp vụ, xác thực và phân quyền đều do server kiểm tra. Nhân viên thường không gọi được API nhân sự (403). Tài khoản bị khóa, bị xóa hay bị đổi vai trò trong lúc đang mở app sẽ bị tự đăng xuất ở thao tác kế tiếp. Web admin (`/admin`) vẫn còn nguyên.
+
+**Phải chạy web trước** (`dotnet run` ở thư mục gốc), rồi mở app ở terminal khác:
 ```sh
 dotnet run --project Rookie.Admin
 ```
-Đăng nhập `admin` / `admin` (đặt biến môi trường `Admin__Password` để đổi mật khẩu cho lần tạo DB đầu tiên). App tự tìm `rookie.db` ở thư mục dự án web; đặt `ROOKIE_DB` để chỉ file khác. Nếu chưa có DB, app tạo mới kèm dữ liệu mẫu. Xuất Excel ghi file .xlsx; xuất PDF dùng máy in "Microsoft Print to PDF" của Windows.
+Đăng nhập `admin` / `admin` (quản trị) hoặc `thuha` / `nhanvien` (nhân viên). App gọi server ở `http://localhost:5000`; đặt biến môi trường `ROOKIE_API` để chỉ địa chỉ khác (ví dụ máy chủ trong mạng LAN). Database do web tạo (kèm dữ liệu mẫu) khi chạy lần đầu. Xuất Excel ghi file .xlsx; xuất PDF dùng máy in "Microsoft Print to PDF" của Windows. Chế độ chụp giao diện `RookieAdmin.exe --screenshots <thư mục>` cũng phải đăng nhập thật, bằng biến môi trường `ROOKIE_USER` / `ROOKIE_PASS`.
 - `/`: bánh bán chạy/bánh mới; “Xem tất cả bánh” mở `/Shop`.
 - `/Shop`: trang riêng với tìm kiếm, bộ lọc loại bánh/bánh mới/bán chạy và sắp xếp giá.
 - `/Shop/Details/1`: chi tiết bánh và chọn số lượng.

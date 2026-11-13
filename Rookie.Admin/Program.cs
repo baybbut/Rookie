@@ -1,25 +1,27 @@
-﻿using Rookie.Data;
-using Rookie.Models;
+﻿using Rookie.Models;
 namespace Rookie.Admin;
 
+// App quản trị không mở database: đăng nhập và mọi thao tác đi qua Web API, nên web (`dotnet run`) phải đang chạy.
 static class Program {
  [STAThread]
  static void Main(string[] args) {
   ApplicationConfiguration.Initialize();
-  try { using var db = Db.New(); DbInit.Prepare(db, Environment.GetEnvironmentVariable("Admin__Password") ?? "admin", true); }
-  catch (Exception e) { MessageBox.Show($"Không mở được cơ sở dữ liệu:\n{Db.Path}\n\n{e.Message}\n\nNếu web đang chạy với DB cũ, hãy tắt web rồi mở lại app này.", "Rookie Admin", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+  // Lỗi khi tải trang (mất kết nối, hết phiên…) hiện thành hộp thoại thay vì làm app thoát.
+  Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException); Application.ThreadException += (_, e) => Ui.Err(e.Exception.Message);
   if (args is ["--screenshots", var dir]) { Shots(dir); return; }
   while (true) {
    using var login = new LoginForm(); if (login.ShowDialog() != DialogResult.OK) return;
-   Session.User = login.User!; var main = new MainForm(); Application.Run(main); if (!main.LoggedOut) return;
+   var main = new MainForm(); Application.Run(main); Api.Token = null; if (!main.LoggedOut) return;
   }
  }
 
- // Chế độ kiểm tra giao diện: `RookieAdmin.exe --screenshots <thư mục>` chụp từng trang (đăng nhập sẵn bằng tài khoản admin) rồi thoát.
+ // Chế độ kiểm tra giao diện: `RookieAdmin.exe --screenshots <thư mục>` chụp từng trang rồi thoát.
+ // Vẫn phải đăng nhập thật qua API bằng tài khoản trong biến môi trường ROOKIE_USER / ROOKIE_PASS (không có đường tắt bỏ qua mật khẩu).
  static void Shots(string dir) {
-  Directory.CreateDirectory(dir); using (var db = Db.New()) Session.User = db.Staffs.First(s => s.Username == "admin");
-  using var m = new MainForm(); m.Show();
-  foreach (var k in new[] { "dash", "cats", "prods", "custs", "orders", "stock", "staff", "reports" }) {
+  try { LoginForm.SignIn(Environment.GetEnvironmentVariable("ROOKIE_USER") ?? "", Environment.GetEnvironmentVariable("ROOKIE_PASS") ?? ""); }
+  catch (ApiException e) { Console.Error.WriteLine("Đăng nhập thất bại: " + e.Message); Environment.ExitCode = 1; return; }
+  Directory.CreateDirectory(dir); using var m = new MainForm(); m.Show();
+  foreach (var k in new[] { "dash", "cats", "prods", "custs", "orders", "stock", "staff", "reports" }.Where(k => k != "staff" || Session.IsAdmin)) {
    m.Go(k); Application.DoEvents(); Thread.Sleep(300); Application.DoEvents();
    using var bmp = new Bitmap(m.Width, m.Height); m.DrawToBitmap(bmp, new Rectangle(0, 0, m.Width, m.Height)); bmp.Save(Path.Combine(dir, $"{k}.png"));
   }
@@ -28,7 +30,6 @@ static class Program {
 }
 
 class LoginForm : Form {
- public Staff? User;
  readonly TextBox user = FieldForm.Txt(null, 30), pass = FieldForm.Txt(null, 64, true); readonly Label err = new() { AutoSize = true, ForeColor = Ui.Danger, Font = Ui.Base, MaximumSize = new Size(300, 0) };
  public LoginForm() {
   Text = "Rookie Admin — Đăng nhập"; Font = Ui.Base; BackColor = Ui.Cream; FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false; StartPosition = FormStartPosition.CenterScreen; ClientSize = new Size(380, 400);
@@ -39,13 +40,16 @@ class LoginForm : Form {
   Controls.Add(p); AcceptButton = go; Shown += (_, _) => user.Focus();
  }
  void Submit() {
-  using var db = Db.New(); var name = user.Text.Trim().ToLowerInvariant();
-  if (!db.Staffs.Any()) { err.Text = "Chưa có tài khoản quản trị. Đặt biến môi trường Admin__Password rồi mở lại app."; return; }
-  var s = db.Staffs.FirstOrDefault(x => x.Username == name); var ok = s is not null && Pw.Verify(pass.Text, s.PasswordHash);
-  if (!ok) { err.Text = "Sai tên đăng nhập hoặc mật khẩu, thử lại nhé!"; pass.Clear(); pass.Focus(); return; }
-  if (s!.IsLocked) { err.Text = "Tài khoản này đã bị khóa."; return; }
-  User = s; DialogResult = DialogResult.OK; Close();
+  if (user.Text.Trim() == "" || pass.Text == "") { err.Text = "Hãy nhập tên đăng nhập và mật khẩu."; return; }
+  try { SignIn(user.Text, pass.Text); DialogResult = DialogResult.OK; Close(); }
+  catch (ApiException e) { err.Text = e.Message; pass.Clear(); pass.Focus(); }
  }
+ // Server kiểm tra mật khẩu, tài khoản bị khóa và giới hạn số lần thử; trả về JWT chứa vai trò của nhân viên.
+ public static void SignIn(string username, string password) {
+  var r = Api.Post<LoginRes>("api/auth/staff", new { username = username.Trim(), password });
+  Api.Token = r.Token; Session.User = new Staff { Id = r.Id, FullName = r.Name, Role = r.Role, Username = r.Username ?? "" };
+ }
+ record LoginRes(string Token, string Name, string Role, int Id, string? Username);
 }
 
 class MainForm : Form {
@@ -71,6 +75,8 @@ class MainForm : Form {
   who.Controls.AddRange([card, out_]);
   side.Controls.Add(menu); side.Controls.Add(who); side.Controls.Add(top); Controls.Add(content); Controls.Add(side);
   Shown += (_, _) => Go("dash");
+  // Server từ chối token (hết hạn, bị khóa, bị đổi vai trò): đóng cửa sổ chính và quay về màn đăng nhập.
+  Action expired = () => BeginInvoke(() => { LoggedOut = true; Close(); }); Api.Expired += expired; FormClosed += (_, _) => Api.Expired -= expired;
  }
  Page Make(string key) => key switch { "dash" => new DashboardPage(), "cats" => new CategoriesPage(), "prods" => new ProductsPage(), "custs" => new CustomersPage(this), "orders" => new OrdersPage(), "stock" => new WarehousePage(), "staff" => new StaffPage(), _ => new ReportsPage() };
  public Page Go(string key) {
