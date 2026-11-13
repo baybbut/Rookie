@@ -14,6 +14,7 @@ public static class PurchaseStatus {
 }
 public class Customer {
  public int Id { get; set; }
+ [StringLength(40)] public string? UserName { get; set; }
  [Required, StringLength(80)] public string FullName { get; set; } = "";
  [Required, EmailAddress, StringLength(120)] public string Email { get; set; } = "";
  [Required, Phone, StringLength(20)] public string Phone { get; set; } = "";
@@ -30,6 +31,12 @@ public class Order {
  public DateTime CreatedAt { get; set; } = DateTime.Now;
  public string Status { get; set; } = OrderStatus.New;
  public string? Note { get; set; }
+ // Người nhận do khách nhập khi đặt trên web (null với đơn nhân viên tạo: giao theo thông tin khách hàng).
+ public string? ShipName { get; set; }
+ public string? ShipPhone { get; set; }
+ public string? ShipAddress { get; set; }
+ // Khóa chống gửi trùng đơn khi khách bấm đặt hàng nhiều lần.
+ public string? RequestKey { get; set; }
  public string? CreatedBy { get; set; }
  public string? ConfirmedBy { get; set; }
  public DateTime? ConfirmedAt { get; set; }

@@ -3,7 +3,7 @@ namespace Rookie.Data;
 // Khởi tạo DB dùng chung cho web và app WinForms. Dự án không dùng EF migrations: khi đổi model thì tăng SchemaVersion,
 // DB cũ được đổi tên thành *.bak-* rồi tạo lại (kèm dữ liệu mẫu).
 public static class DbInit {
- public const int SchemaVersion = 2;
+ public const int SchemaVersion = 3;
  public static void Prepare(ShopDbContext db, string? adminPassword, bool demo, Action<string>? log = null) {
   var cn = db.Database.GetDbConnection();
   if (File.Exists(cn.DataSource)) {
