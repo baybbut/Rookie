@@ -11,8 +11,10 @@ public class Customer {
  [Required, Phone, StringLength(20)] public string Phone { get; set; } = "";
  [StringLength(200)] public string? Address { get; set; }
  public bool IsLocked { get; set; }
+ // null = khách do admin tạo, chưa đăng ký tài khoản API.
+ [System.Text.Json.Serialization.JsonIgnore] public string? PasswordHash { get; set; }
  public DateTime CreatedAt { get; set; } = DateTime.Now;
- public List<Order> Orders { get; set; } = [];
+ [System.Text.Json.Serialization.JsonIgnore] public List<Order> Orders { get; set; } = [];
 }
 public class Order {
  public int Id { get; set; }

@@ -123,19 +123,21 @@ public partial class AdminController {
 
  // ---- Báo cáo & thống kê ----
  [HttpGet("reports")]
- public async Task<IActionResult> Reports(int days = 30) {
+ public async Task<IActionResult> Reports(int days = 30) => View(await BuildReport(db, days));
+
+ internal static async Task<ReportVm> BuildReport(Rookie.Data.ShopDbContext db, int days) {
   days = days is 7 or 30 or 90 ? days : 30;
   var from = DateTime.Today.AddDays(-(days - 1));
   var orders = (await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).ToListAsync()).Where(o => o.CreatedAt >= from).ToList();
   var live = orders.Where(o => o.Status != OrderStatus.Cancelled).ToList();
   var purchases = (await db.Purchases.AsNoTracking().Include(p => p.Items).ToListAsync()).Where(p => p.CreatedAt >= from).ToList();
   var revenue = live.Sum(o => o.Total); var cost = purchases.Sum(p => p.Total);
-  return View(new ReportVm {
+  return new ReportVm {
    Days = days, Revenue = revenue, Cost = cost, Profit = revenue - cost, OrderCount = live.Count, AvgOrder = live.Count == 0 ? 0 : revenue / live.Count,
    Series = Series(live, from, days), TopProducts = TopProducts(live, 5),
    TopCustomers = live.GroupBy(o => o.Customer?.FullName ?? "—").Select(g => new NamedValue(g.Key, g.Sum(o => o.Total), g.Count())).OrderByDescending(n => n.Value).Take(5).ToList(),
    ByStatus = OrderStatus.All.Select(s => new NamedValue(s, orders.Where(o => o.Status == s).Sum(o => o.Total), orders.Count(o => o.Status == s))).ToList(),
    BySupplier = purchases.GroupBy(p => p.Supplier).Select(g => new NamedValue(g.Key, g.Sum(p => p.Total), g.Count())).OrderByDescending(n => n.Value).ToList(),
-  });
+  };
  }
 }

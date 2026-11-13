@@ -12,7 +12,9 @@ namespace Rookie.Controllers;
 [Authorize, Route("admin")]
 public partial class AdminController(ShopDbContext db, IConfiguration config, IWebHostEnvironment env) : Controller {
  // Mật khẩu lấy từ cấu hình Admin:Password; riêng môi trường Development có mặc định "admin".
- string? AdminPassword => config["Admin:Password"] ?? (env.IsDevelopment() ? "admin" : null);
+ internal static string? AdminPasswordFrom(IConfiguration config, IWebHostEnvironment env) => config["Admin:Password"] ?? (env.IsDevelopment() ? "admin" : null);
+ string? AdminPassword => AdminPasswordFrom(config, env);
+ internal static bool PasswordMatches(string? expected, string? password) => expected is not null && CryptographicOperations.FixedTimeEquals(SHA256.HashData(Encoding.UTF8.GetBytes(password ?? "")), SHA256.HashData(Encoding.UTF8.GetBytes(expected)));
 
  [AllowAnonymous, HttpGet("login")]
  public IActionResult Login(string? returnUrl) { ViewBag.ReturnUrl = returnUrl; ViewBag.Disabled = AdminPassword is null; return View(); }
@@ -20,7 +22,7 @@ public partial class AdminController(ShopDbContext db, IConfiguration config, IW
  [AllowAnonymous, HttpPost("login"), ValidateAntiForgeryToken]
  public async Task<IActionResult> Login(string? password, string? returnUrl) {
   var expected = AdminPassword;
-  if (expected is not null && CryptographicOperations.FixedTimeEquals(SHA256.HashData(Encoding.UTF8.GetBytes(password ?? "")), SHA256.HashData(Encoding.UTF8.GetBytes(expected)))) {
+  if (PasswordMatches(expected, password)) {
    var id = new ClaimsIdentity([new Claim(ClaimTypes.Name, "admin")], CookieAuthenticationDefaults.AuthenticationScheme);
    await HttpContext.SignInAsync(new ClaimsPrincipal(id));
    return Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl) : RedirectToAction(nameof(Index));
@@ -33,12 +35,14 @@ public partial class AdminController(ShopDbContext db, IConfiguration config, IW
  public async Task<IActionResult> Logout() { await HttpContext.SignOutAsync(); return RedirectToAction(nameof(Login)); }
 
  [HttpGet("")]
- public async Task<IActionResult> Index() {
+ public async Task<IActionResult> Index() => View(await BuildDashboard(db));
+
+ internal static async Task<DashboardVm> BuildDashboard(ShopDbContext db) {
   var orders = await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).ToListAsync();
   var purchases = await db.Purchases.AsNoTracking().Include(p => p.Items).ToListAsync();
   var today = DateTime.Today; var month = new DateTime(today.Year, today.Month, 1);
   var live = orders.Where(o => o.Status != OrderStatus.Cancelled).ToList();
-  return View(new DashboardVm {
+  return new DashboardVm {
    RevenueToday = live.Where(o => o.CreatedAt >= today).Sum(o => o.Total),
    RevenueMonth = live.Where(o => o.CreatedAt >= month).Sum(o => o.Total),
    PurchaseMonth = purchases.Where(p => p.CreatedAt >= month).Sum(p => p.Total),
@@ -48,7 +52,7 @@ public partial class AdminController(ShopDbContext db, IConfiguration config, IW
    Days = Series(live, today.AddDays(-6), 7),
    Recent = orders.OrderByDescending(o => o.CreatedAt).Take(6).ToList(),
    TopProducts = TopProducts(live.Where(o => o.CreatedAt >= today.AddDays(-29)), 5),
-  });
+  };
  }
 
  static List<DayPoint> Series(IEnumerable<Order> live, DateTime from, int days) {
