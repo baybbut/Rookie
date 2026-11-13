@@ -9,6 +9,20 @@ dotnet run --urls http://localhost:5080
 
 WinForms chỉ chạy trên Windows và không dùng để render website. Có thể xây dựng ứng dụng quản trị WinForms riêng kết nối API trong giai đoạn sau.
 
+## React islands (phần tương tác của trang khách)
+Các trang khách vẫn là Razor (C#). Riêng những phần cần tương tác thì dùng React và gắn vào chỗ `<div data-island="...">` trên trang:
+- **Trang chủ, mục “Hôm nay, bạn thèm gì?”**: tab lọc, tìm kiếm và lưới bánh lấy từ `GET /api/products`.
+- **Nút “+” trên thẻ bánh ở `/Shop`**: thêm vào giỏ, không tải lại trang.
+- **Trang giỏ hàng**: đổi số lượng, xóa bánh, tổng tiền cập nhật ngay.
+
+Code React nằm ở `client/src` và được build thành **một file** `wwwroot/js/islands/islands.js`. File này đã có sẵn trong repo, nên chỉ chạy web thì **không cần cài Node.js**. Nếu sửa code React (cần Node.js 18+):
+```sh
+cd client
+npm install        # lần đầu
+npm run build      # build lại wwwroot/js/islands/islands.js; hoặc `npm run watch` để tự build khi sửa
+```
+Sau khi build, tải lại trang. Nhớ commit cả file `islands.js` mới. Các island gọi `/api/cart` bằng chính cookie đăng nhập của khách (không dùng JWT), kèm token chống CSRF lấy từ trang.
+
 ## Ứng dụng quản trị WinForms
 `Rookie.Admin/` là app quản trị WinForms (Windows, .NET 8) dùng chung model và file `rookie.db` với web, nên dữ liệu hai bên luôn khớp. Web admin (`/admin`) vẫn còn nguyên.
 ```sh
@@ -56,6 +70,7 @@ Dành cho website khách viết bằng React và app quản trị WinForms. Hi�
 | Đã đăng nhập | `GET auth/me` |
 | Khách (`Customer`) | `GET/PUT me/profile`; `POST orders` `{items:[{productId,quantity}],name,phone,address,note,requestKey}`; `GET orders/mine`, `GET orders/mine/{id}`, `POST orders/mine/{id}/cancel` (chỉ khi đơn còn “Mới”) |
 | Nhân viên (“Quản trị” hoặc “Nhân viên”) | `GET admin/dashboard`, `GET admin/reports?type=range&from=&to=` \| `type=month&month=yyyy-MM` \| `type=year&year=`; CRUD `admin/products`, `admin/categories`; `admin/customers` (+ `POST {id}/lock`); `admin/orders` (+ `PUT {id}/status` theo đúng quy trình, `GET admin/order-statuses`); `GET admin/suppliers`, `GET admin/stock`; `admin/purchases` (+ `POST {id}/receive`, `POST {id}/cancel`); `admin/discards`, `GET admin/discard-reasons` |
+| Khách đăng nhập trên web (cookie + CSRF, cho React islands) | `GET /api/cart`, `POST /api/cart` `{productId,quantity}` (cộng thêm), `PUT /api/cart` (đặt số lượng, 0 = xóa) |
 | Chỉ “Quản trị” | `GET/POST admin/staff`, `PUT admin/staff/{id}`, `POST admin/staff/{id}/lock` |
 
 Lỗi nghiệp vụ trả về `{ "error": "..." }` (400/409), lỗi dữ liệu nhập trả về ProblemDetails (400). Các API đăng nhập/đăng ký giới hạn 10 lần/phút mỗi IP. CORS mặc định cho `http://localhost:5173` và `:3000`, đổi bằng `Cors:Origins`.
