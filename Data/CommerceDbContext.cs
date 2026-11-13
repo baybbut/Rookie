@@ -1,3 +1,5 @@
+using Customer = Rookie.Storefront.Models.Customer;
+using Order = Rookie.Storefront.Models.Order;
 using Microsoft.EntityFrameworkCore;
 using Rookie.Models;
 namespace Rookie.Data;
