@@ -43,17 +43,23 @@ class CustomersPage : Page {
 class OrdersPage : Page {
  readonly TextBox q; readonly DateTimePicker from, to; readonly ComboBox status; readonly Panel chip = new() { AutoSize = true, Visible = false, Margin = new Padding(0, 0, 0, 6) }; readonly Label chipText = Ui.Lbl("");
  readonly Button bConfirm, bNext, bCancel; int? customer;
+ // Đơn khách đặt trên web ghi thẳng vào rookie.db: cứ 15 giây kiểm tra, có đơn mới (mã lớn hơn) thì tải lại danh sách.
+ readonly System.Windows.Forms.Timer poll = new() { Interval = 15000 }; int lastId;
  public OrdersPage() : base("Orders", "Quản lý đơn hàng") {
   q = Add("Tìm đơn hàng", new TextBox(), 230); from = Add("Từ ngày", new DateTimePicker(), 130); to = Add("Đến ngày", new DateTimePicker(), 130); status = Add("Trạng thái", Combo("Tất cả", OrderStatus.All)); ClearButton(() => customer = null);
   var cp = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 19, 0, 0) }; cp.Controls.Add(chipText); cp.Controls.Add(Ui.Btn("Bỏ lọc khách", () => { customer = null; Reload(); })); chip.Controls.Add(cp); Filters.Controls.Add(chip);
   G.Setup("Mã|0.45", "Khách hàng|1.7", "Thời gian|1.25", "Sản phẩm|2.4", ">Tổng|1", "Trạng thái|1", "Xác nhận bởi|1.3");
   bConfirm = Act("Xác nhận đơn", () => Advance(OrderStatus.Confirmed, "Xác nhận"), primary: true); bNext = Act("Chuyển bước tiếp", () => { if (G.Pick<Order>() is { } o && OrderStatus.Next(o.Status) is { } n) Advance(n, "Chuyển"); });
   bCancel = Act("Hủy đơn", () => Advance(OrderStatus.Cancelled, "Hủy"), danger: true); Act("Chi tiết", Detail, reload: false); G.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Detail(); }; G.SelectionChanged += (_, _) => Buttons();
+  Act("Làm mới", () => { });
+  poll.Tick += (_, _) => { if (!Visible) return; using var db = Db.New(); if ((db.Orders.Max(o => (int?)o.Id) ?? 0) > lastId) Reload(); }; poll.Start();
  }
  public void FilterCustomer(int id) { customer = id; Reload(); }
  void Buttons() { var s = G.Pick<Order>()?.Status; bConfirm.Enabled = s == OrderStatus.New; bNext.Enabled = s is not null && s != OrderStatus.New && OrderStatus.Next(s) is not null; bCancel.Enabled = s is not null && OrderStatus.CanCancel(s); }
  public override void Reload() {
-  using var db = Db.New(); IEnumerable<Order> r = db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).OrderByDescending(o => o.CreatedAt).ToList();
+  // Đơn mới nhất (mã lớn nhất) lên đầu.
+  using var db = Db.New(); IEnumerable<Order> r = db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).OrderByDescending(o => o.Id).ToList();
+  lastId = r.Select(o => o.Id).DefaultIfEmpty().Max();
   if (!string.IsNullOrWhiteSpace(q.Text)) { var t = q.Text.Trim().TrimStart('#'); r = r.Where(o => o.Id.ToString() == t || Svc.Has(o.Customer?.FullName, t) || Svc.Has(o.Customer?.Phone, t)); }
   if (customer is int cid) { r = r.Where(o => o.CustomerId == cid); chipText.Text = $"Đang lọc theo khách hàng:  {db.Customers.Find(cid)?.FullName ?? "#" + cid}   "; chip.Visible = true; } else chip.Visible = false;
   if (Pick(from) is { } a) r = r.Where(o => o.CreatedAt >= a); if (Pick(to) is { } b) r = r.Where(o => o.CreatedAt < b.AddDays(1)); if (Sel(status) is { } s) r = r.Where(o => o.Status == s);
@@ -73,7 +79,7 @@ class OrdersPage : Page {
   if (G.Pick<Order>() is not { } o) return;
   using var f = new Form { Text = $"Đơn #{o.Id}", Font = Ui.Base, BackColor = Ui.Cream, StartPosition = FormStartPosition.CenterParent, Size = new Size(620, 520), MinimizeBox = false, Padding = new Padding(20) };
   var g = new Grid().Setup("Sản phẩm", ">Đơn giá", ">SL", ">Thành tiền"); g.Load(o.Items, i => [i.ProductName, Fmt.Vnd(i.UnitPrice), i.Quantity, Fmt.Vnd(i.Subtotal)]);
-  var c = o.Customer; var info = Ui.Lbl($"{c?.FullName}\n{c?.Email} · {c?.Phone}\n{c?.Address}\n\nĐặt lúc {Fmt.Date(o.CreatedAt)}{(o.CreatedBy is null ? "" : " · tạo bởi " + o.CreatedBy)}\nTrạng thái: {o.Status}{(o.ConfirmedBy is null ? "  (chưa nhân viên nào xác nhận)" : $"  ·  xác nhận bởi {o.ConfirmedBy}{(o.ConfirmedAt is { } t ? " lúc " + Fmt.Date(t) : "")}")}{(string.IsNullOrEmpty(o.Note) ? "" : "\nGhi chú: " + o.Note)}"); info.Dock = DockStyle.Top; info.AutoSize = true;
+  var c = o.Customer; var info = Ui.Lbl($"{c?.FullName}\n{c?.Email} · {c?.Phone}\n{c?.Address}{(o.ShipAddress is null ? "" : $"\nGiao tới: {o.ShipName} · {o.ShipPhone} · {o.ShipAddress}")}\n\nĐặt lúc {Fmt.Date(o.CreatedAt)}{(o.CreatedBy is null ? "" : " · tạo bởi " + o.CreatedBy)}\nTrạng thái: {o.Status}{(o.ConfirmedBy is null ? "  (chưa nhân viên nào xác nhận)" : $"  ·  xác nhận bởi {o.ConfirmedBy}{(o.ConfirmedAt is { } t ? " lúc " + Fmt.Date(t) : "")}")}{(string.IsNullOrEmpty(o.Note) ? "" : "\nGhi chú: " + o.Note)}"); info.Dock = DockStyle.Top; info.AutoSize = true;
   var total = Ui.Lbl($"Tổng cộng: {Fmt.Vnd(o.Total)}", Ui.Big); total.Dock = DockStyle.Bottom; total.TextAlign = ContentAlignment.MiddleRight; total.AutoSize = false; total.Height = 40;
   f.Controls.Add(g); f.Controls.Add(total); f.Controls.Add(info); f.ShowDialog(this);
  }

@@ -25,7 +25,9 @@ public static class DemoData {
   if (products.Count == 0) return;
   for (var d = 29; d >= 0; d--) {
    for (var k = rnd.Next(0, 4); k > 0; k--) {
-    var o = new Order { CustomerId = customers[rnd.Next(5)].Id, CreatedAt = DateTime.Today.AddDays(-d).AddHours(8 + rnd.Next(12)), CreatedBy = staff[rnd.Next(staff.Count)] };
+    // Đơn mẫu không được ở tương lai (nếu không, đơn thật vừa đặt sẽ nằm dưới các đơn mẫu "chiều nay").
+    var at = DateTime.Today.AddDays(-d).AddHours(8 + rnd.Next(12)); if (at > DateTime.Now) at = DateTime.Now.AddMinutes(-rnd.Next(5, 120));
+    var o = new Order { CustomerId = customers[rnd.Next(5)].Id, CreatedAt = at, CreatedBy = staff[rnd.Next(staff.Count)] };
     foreach (var p in products.OrderBy(_ => rnd.Next()).Take(rnd.Next(1, 4))) o.Items.Add(new OrderItem { ProductId = p.Id, ProductName = p.Name, UnitPrice = p.Price, Quantity = rnd.Next(1, 4) });
     o.Status = d > 2 ? (rnd.Next(10) == 0 ? OrderStatus.Cancelled : OrderStatus.Done) : OrderStatus.All[rnd.Next(5)];
     if (o.Status != OrderStatus.New && o.Status != OrderStatus.Cancelled) (o.ConfirmedBy, o.ConfirmedAt) = (staff[rnd.Next(staff.Count)], o.CreatedAt.AddMinutes(10 + rnd.Next(50)));
