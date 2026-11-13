@@ -1,14 +1,32 @@
-@{ ViewData["Title"] = "Tạo phiếu nhập"; ViewData["Nav"] = "purchases"; var rows = ViewBag.Rows as List<PurchaseRow> ?? []; }
+@{
+ ViewData["Title"] = "Tạo phiếu nhập"; ViewData["Nav"] = "warehouse";
+ var rows = ViewBag.Rows as List<PurchaseRow> ?? []; var suppliers = (List<Supplier>)ViewBag.Suppliers; var products = (List<Product>)ViewBag.Products;
+ var inv = System.Globalization.CultureInfo.InvariantCulture; var date = (string?)ViewBag.Date ?? DateTime.Today.ToString("yyyy-MM-dd");
+}
 <div class="admin-head"><div><div class="eyebrow">NEW PURCHASE</div><h1>Tạo phiếu nhập</h1></div><a class="ghost" asp-action="Purchases">← Quay lại</a></div>
-<form class="admin-form wide-form" method="post" asp-action="CreatePurchase">
+<form class="admin-form wide-form" method="post" asp-action="CreatePurchase" id="purchaseForm">
  @if (ViewBag.Error is string err) {<p class="alert">@err</p>}
- <div class="row"><label>Nhà cung cấp<input name="supplier" maxlength="80" value="@ViewBag.Supplier" required/></label><label>Ghi chú<input name="note" maxlength="200" value="@ViewBag.Note"/></label></div>
- <fieldset><legend>Mặt hàng nhập (để trống các dòng không dùng)</legend>
-  <div class="prow head"><span>Tên hàng</span><span>Đơn vị</span><span>Số lượng</span><span>Đơn giá (₫)</span></div>
+ <div class="row">
+  <label>Xưởng bánh<select name="supplier" required><option value="">— Chọn xưởng bánh —</option>@foreach (var s in suppliers) {<option value="@s.Name" selected="@(s.Name == (string?)ViewBag.Supplier)">@s.Name</option>}</select></label>
+  <label>Ngày lập phiếu<input type="date" name="date" value="@date" max="@DateTime.Today.ToString("yyyy-MM-dd")" required/></label>
+ </div>
+ <label>Ghi chú<input name="note" maxlength="200" value="@ViewBag.Note"/></label>
+ <fieldset><legend>Bánh nhập (bỏ trống số lượng ở các dòng không dùng)</legend>
+  <div class="prow head"><span>Bánh</span><span>Số lượng</span><span>Đơn vị</span><span>Đơn giá nhập (₫)</span></div>
   @for (var i = 0; i < 6; i++) {
    var r = i < rows.Count ? rows[i] : null;
-   <div class="prow"><input name="rows[@i].ItemName" maxlength="80" value="@r?.ItemName" aria-label="Tên hàng @(i + 1)"/><input name="rows[@i].Unit" maxlength="20" value="@r?.Unit" placeholder="kg" aria-label="Đơn vị"/><input name="rows[@i].Quantity" type="number" min="0" step="any" value="@(r is null || r.Quantity == 0 ? "" : r.Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture))" aria-label="Số lượng"/><input name="rows[@i].UnitCost" type="number" min="0" step="any" value="@(r is null || r.UnitCost == 0 ? "" : r.UnitCost.ToString(System.Globalization.CultureInfo.InvariantCulture))" aria-label="Đơn giá"/></div>
+   <div class="prow"><select name="rows[@i].ProductId" aria-label="Bánh @(i + 1)"><option value="" data-unit="">— Chọn bánh —</option>@foreach (var p in products) {<option value="@p.Id" data-unit="@p.Unit" selected="@(r?.ProductId == p.Id)">@p.Code · @p.Name</option>}</select>
+    <input name="rows[@i].Quantity" type="number" min="0" max="100000" step="1" value="@(r is null || r.Quantity == 0 ? "" : r.Quantity.ToString(inv))" aria-label="Số lượng"/>
+    <span class="unit" aria-label="Đơn vị">—</span>
+    <input name="rows[@i].UnitCost" type="number" min="0" step="any" value="@(r is null || r.UnitCost == 0 ? "" : r.UnitCost.ToString(inv))" aria-label="Đơn giá nhập"/></div>
   }
+  <p class="qty-total">Tổng tiền: <b id="pTotal">0 ₫</b></p>
  </fieldset>
+ <p class="hint">Phiếu mới ở trạng thái “Chờ nhập kho”; số bánh chỉ được cộng vào tồn kho sau khi bạn xác nhận ở trang chi tiết phiếu.</p>
  <div class="form-actions"><button class="btn" type="submit">Lưu phiếu nhập <span>↗</span></button></div>
 </form>
+<script>
+(()=>{const f=document.getElementById('purchaseForm'),t=document.getElementById('pTotal'),rs=[...f.querySelectorAll('.prow:not(.head)')];
+const upd=()=>{let s=0;rs.forEach(r=>{const sel=r.querySelector('select'),q=r.querySelector('input[name$=Quantity]'),c=r.querySelector('input[name$=UnitCost]');r.querySelector('.unit').textContent=sel.selectedOptions[0].dataset.unit||'—';if(sel.value)s+=(+q.value||0)*(+c.value||0)});t.textContent=s.toLocaleString('vi-VN')+' ₫'};
+f.addEventListener('input',upd);f.addEventListener('change',upd);upd()})();
+</script>
