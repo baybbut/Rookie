@@ -7,11 +7,11 @@ namespace Rookie.Controllers;
 public partial class AdminController {
  // ---- Báo cáo & thống kê: theo khoảng ngày / theo tháng / theo năm ----
  [HttpGet("reports")]
- public async Task<IActionResult> Reports(string? type, [FromQuery(Name = "from")] DateTime? df, [FromQuery(Name = "to")] DateTime? dt, string? month, int? year, bool print = false) { ViewBag.Print = print; return View(await BuildReport(type, df, dt, month, year)); }
+ public async Task<IActionResult> Reports(string? type, [FromQuery(Name = "from")] DateTime? df, [FromQuery(Name = "to")] DateTime? dt, string? month, int? year, bool print = false) { ViewBag.Print = print; return View(await BuildReport(db, type, df, dt, month, year)); }
 
  [HttpGet("reports/export")]
  public async Task<IActionResult> ExportReport(string? type, [FromQuery(Name = "from")] DateTime? df, [FromQuery(Name = "to")] DateTime? dt, string? month, int? year) {
-  var r = await BuildReport(type, df, dt, month, year);
+  var r = await BuildReport(db, type, df, dt, month, year);
   var per = r.PeriodUnit == "tháng" ? "Tháng" : "Ngày";
   var bytes = Xlsx.Build(
    new XSheet("Tổng quan", ["Chỉ tiêu", "Giá trị"], [["Kỳ báo cáo", r.Title], ["Doanh thu (₫)", r.Revenue], ["Số đơn (không tính đã hủy)", r.OrderCount], ["Giá trị TB / đơn (₫)", Math.Round(r.AvgOrder)], ["Số bánh hủy", r.Wasted], ["Giá trị bánh hủy (₫)", r.WastedValue], ["Người xuất", Me], ["Xuất lúc", Fmt.Date(DateTime.Now)]]),
@@ -22,7 +22,7 @@ public partial class AdminController {
   return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"bao-cao-{r.From:yyyyMMdd}-{r.To:yyyyMMdd}.xlsx");
  }
 
- async Task<ReportVm> BuildReport(string? type, DateTime? df, DateTime? dt, string? month, int? year) {
+ internal static async Task<ReportVm> BuildReport(ShopDbContext db, string? type, DateTime? df, DateTime? dt, string? month, int? year) {
   var today = DateTime.Today; type = type is "month" or "year" ? type : "range";
   var vm = new ReportVm { Type = type }; DateTime start, end;
   var m = DateTime.TryParseExact(month, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var mm) ? mm : new DateTime(today.Year, today.Month, 1);

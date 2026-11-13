@@ -10,7 +10,7 @@ public class Staff {
  [Required, RegularExpression("^[a-z0-9._]{3,30}$", ErrorMessage = "Tên đăng nhập 3–30 ký tự: chữ thường, số, dấu . hoặc _")] public string Username { get; set; } = "";
  [Phone, StringLength(20)] public string? Phone { get; set; }
  [Required] public string Role { get; set; } = StaffRole.Staff;
- public string? PasswordHash { get; set; }
+ [System.Text.Json.Serialization.JsonIgnore] public string? PasswordHash { get; set; }
  public bool IsLocked { get; set; }
  public DateTime CreatedAt { get; set; } = DateTime.Now;
 }

@@ -1,71 +1,81 @@
-using Microsoft.EntityFrameworkCore;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Rookie.Data;
 using Rookie.Models;
 namespace Rookie.Admin;
 
-// Tìm rookie.db của web (đi ngược từ thư mục chạy tới khi gặp rookie.db hoặc Rookie.csproj); đặt ROOKIE_DB để chỉ định file khác.
-static class Db {
- public static readonly string Path = Locate();
- static string Locate() {
-  var env = Environment.GetEnvironmentVariable("ROOKIE_DB"); if (!string.IsNullOrEmpty(env)) return env;
-  for (var d = new DirectoryInfo(AppContext.BaseDirectory); d is not null; d = d.Parent) {
-   var f = System.IO.Path.Combine(d.FullName, "rookie.db");
-   if (File.Exists(f) || File.Exists(System.IO.Path.Combine(d.FullName, "Rookie.csproj"))) return f;
+public class ApiException(HttpStatusCode? status, string message) : Exception(message) { public HttpStatusCode? Status { get; } = status; }
+
+// App không mở rookie.db nữa: mọi dữ liệu đi qua Web API (/api/admin/...) của web, kèm JWT lấy lúc đăng nhập.
+// Nghiệp vụ, xác thực và phân quyền do server kiểm tra; ẩn/hiện nút trong app chỉ để tiện dùng.
+// Địa chỉ server mặc định http://localhost:5000 (cổng của `dotnet run`), đổi bằng biến môi trường ROOKIE_API.
+static class Api {
+ public static readonly string Base = (Environment.GetEnvironmentVariable("ROOKIE_API") ?? "http://localhost:5000").TrimEnd('/');
+ static readonly HttpClient http = new() { BaseAddress = new Uri(Base + "/"), Timeout = TimeSpan.FromSeconds(20) };
+ static readonly JsonSerializerOptions json = new(JsonSerializerDefaults.Web);
+ public static string? Token; // chỉ giữ trong bộ nhớ, mất khi đóng app
+ // Phát ra khi server từ chối token (hết hạn, tài khoản bị khóa/xóa hoặc bị đổi vai trò) để app quay về màn đăng nhập.
+ public static event Action? Expired;
+
+ public static T Get<T>(string path) => Read<T>(Send(HttpMethod.Get, path, null));
+ public static T Post<T>(string path, object? body = null) => Read<T>(Send(HttpMethod.Post, path, body ?? new { }));
+ public static T Put<T>(string path, object body) => Read<T>(Send(HttpMethod.Put, path, body));
+ public static void Post(string path, object? body = null) => Send(HttpMethod.Post, path, body ?? new { }).Dispose();
+ public static void Delete(string path) => Send(HttpMethod.Delete, path, null).Dispose();
+ public static string Q(string s) => Uri.EscapeDataString(s);
+
+ static T Read<T>(HttpResponseMessage res) { using (res) return JsonSerializer.Deserialize<T>(res.Content.ReadAsStream(), json)!; }
+
+ // shortcut: gọi đồng bộ (HttpClient.Send) nên giao diện đứng trong lúc chờ; đủ nhanh khi server cùng máy/mạng LAN, đổi sang async nếu server ở xa.
+ static HttpResponseMessage Send(HttpMethod method, string path, object? body) {
+  using var req = new HttpRequestMessage(method, path.TrimStart('/'));
+  if (Token is not null) req.Headers.Authorization = new("Bearer", Token);
+  if (body is not null) req.Content = JsonContent.Create(body, options: json);
+  HttpResponseMessage res;
+  try { res = http.Send(req); }
+  catch (HttpRequestException) { throw new ApiException(null, $"Không kết nối được máy chủ {Base}.\nHãy chạy web (lệnh `dotnet run` ở thư mục dự án) rồi thử lại."); }
+  catch (TaskCanceledException) { throw new ApiException(null, "Máy chủ phản hồi quá lâu, vui lòng thử lại."); }
+  if (res.IsSuccessStatusCode) return res;
+  using (res) {
+   if (res.StatusCode == HttpStatusCode.Unauthorized && Token is not null) {
+    Token = null; Expired?.Invoke();
+    throw new ApiException(res.StatusCode, "Phiên đăng nhập đã hết hiệu lực, hoặc tài khoản vừa bị khóa / đổi quyền.\nVui lòng đăng nhập lại.");
+   }
+   throw new ApiException(res.StatusCode, Message(res));
   }
-  return System.IO.Path.Combine(AppContext.BaseDirectory, "rookie.db");
  }
- public static ShopDbContext New() => new(new DbContextOptionsBuilder<ShopDbContext>().UseSqlite($"Data Source={Path}").Options);
+
+ // Lỗi nghiệp vụ: { "error": "..." }; lỗi dữ liệu nhập: ProblemDetails { "errors": { "Field": ["..."] } }.
+ static string Message(HttpResponseMessage res) {
+  try {
+   using var doc = JsonDocument.Parse(res.Content.ReadAsStream()); var root = doc.RootElement;
+   if (root.TryGetProperty("error", out var e)) return e.GetString() ?? "";
+   if (root.TryGetProperty("errors", out var errs)) return string.Join("\n", errs.EnumerateObject().SelectMany(p => p.Value.EnumerateArray().Select(v => v.GetString())));
+  } catch (JsonException) { }
+  return res.StatusCode switch {
+   HttpStatusCode.Forbidden => "Bạn không có quyền thực hiện thao tác này.",
+   HttpStatusCode.NotFound => "Không tìm thấy dữ liệu (có thể đã bị xóa).",
+   HttpStatusCode.TooManyRequests => "Thử quá nhiều lần. Vui lòng đợi một phút rồi thử lại.",
+   _ => $"Máy chủ báo lỗi ({(int)res.StatusCode}).",
+  };
+ }
 }
 
+// Nhân viên đang đăng nhập (lấy từ phản hồi đăng nhập). Quyền thật nằm trong token và được server kiểm tra.
 static class Session {
  public static Staff User = new();
  public static bool IsAdmin => User.Role == StaffRole.Admin;
  public static string Name => User.FullName;
 }
 
-// Nghiệp vụ dùng chung giữa các trang (tồn kho, báo cáo, xuất Excel) — cùng công thức với bản web.
+// Danh mục trả về từ GET /api/admin/categories.
+record CategoryRow(int Id, string Name, int Count, bool Hidden);
+
 static class Svc {
- public const int LowStock = 10;
+ public const int LowStock = 10; // cùng ngưỡng "sắp hết" với trang /admin
  public static bool Has(string? hay, string? term) => string.IsNullOrWhiteSpace(term) || (hay ?? "").Contains(term.Trim(), StringComparison.CurrentCultureIgnoreCase);
  public static bool InDate(DateTime d, int? day, int? month, int? year) => (day is null || d.Day == day) && (month is null || d.Month == month) && (year is null || d.Year == year);
-
- // Tồn = đã nhập kho (phiếu đã xác nhận) − đã bán (đơn chưa hủy) − bánh hủy.
- public static List<StockRow> Stock(ShopDbContext db) {
-  var products = db.Products.AsNoTracking().OrderBy(p => p.Id).ToList();
-  var inn = db.Purchases.AsNoTracking().Include(p => p.Items).Where(p => p.Status == PurchaseStatus.Received).ToList().SelectMany(p => p.Items).GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
-  var sold = db.Orders.AsNoTracking().Include(o => o.Items).Where(o => o.Status != OrderStatus.Cancelled).ToList().SelectMany(o => o.Items).GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
-  var waste = db.Discards.AsNoTracking().ToList().GroupBy(d => d.ProductId).ToDictionary(g => g.Key, g => g.Sum(d => d.Quantity));
-  return products.Select(p => new StockRow(p, inn.GetValueOrDefault(p.Id), sold.GetValueOrDefault(p.Id), waste.GetValueOrDefault(p.Id))).ToList();
- }
-
- public static List<NamedValue> TopProducts(IEnumerable<Order> live, int take) =>
-  live.SelectMany(o => o.Items).GroupBy(i => i.ProductName).Select(g => new NamedValue(g.Key, g.Sum(i => i.Subtotal), g.Sum(i => i.Quantity))).OrderByDescending(n => n.Value).Take(take).ToList();
-
- // Báo cáo theo khoảng ngày ("range"), một tháng ("month") hoặc một năm ("year", gộp theo tháng).
- public static ReportVm Report(ShopDbContext db, string type, DateTime? df, DateTime? dt, DateTime? month, int? year) {
-  var today = DateTime.Today; var vm = new ReportVm { Type = type }; DateTime start, end;
-  var m = month ?? new DateTime(today.Year, today.Month, 1); var y = year is >= 2000 and <= 2100 ? year.Value : today.Year;
-  if (type == "month") { start = new(m.Year, m.Month, 1); end = start.AddMonths(1).AddDays(-1); vm.Title = $"Tháng {start:MM/yyyy} ({Fmt.Day(start)} – {Fmt.Day(end)})"; }
-  else if (type == "year") { start = new(y, 1, 1); end = new(y, 12, 31); vm.Title = $"Năm {y} (theo từng tháng)"; vm.PeriodUnit = "tháng"; }
-  else { end = (dt ?? today).Date; start = (df ?? end.AddDays(-29)).Date; if (start > end) (start, end) = (end, start); if ((end - start).TotalDays > 365) start = end.AddDays(-365); vm.Title = $"{Fmt.Day(start)} – {Fmt.Day(end)}"; }
-  (vm.From, vm.To, vm.Year) = (start, end, y);
-  var orders = db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).Where(o => o.CreatedAt >= start && o.CreatedAt < end.AddDays(1) && o.Status != OrderStatus.Cancelled).ToList();
-  var discards = db.Discards.AsNoTracking().Where(d => d.CreatedAt >= start && d.CreatedAt < end.AddDays(1)).ToList();
-  vm.Revenue = orders.Sum(o => o.Total); vm.OrderCount = orders.Count; vm.AvgOrder = orders.Count == 0 ? 0 : vm.Revenue / orders.Count;
-  vm.Wasted = discards.Sum(d => d.Quantity); vm.WastedValue = discards.Sum(d => d.Value);
-  vm.TopProducts = TopProducts(orders, 5);
-  vm.TopCustomers = orders.GroupBy(o => o.Customer?.FullName ?? "—").Select(g => new NamedValue(g.Key, g.Sum(o => o.Total), g.Count())).OrderByDescending(n => n.Value).Take(5).ToList();
-  var yearly = type == "year";
-  Func<DateTime, DateTime> key = yearly ? d => new DateTime(d.Year, d.Month, 1) : d => d.Date;
-  Func<DateTime, string> label = yearly ? d => $"Tháng {d:MM/yyyy}" : Fmt.Day;
-  var byOrder = orders.GroupBy(o => key(o.CreatedAt)).ToDictionary(g => g.Key, g => g.ToList());
-  var byWaste = discards.GroupBy(d => key(d.CreatedAt)).ToDictionary(g => g.Key, g => g.ToList());
-  for (var d = start; d <= end; d = yearly ? d.AddMonths(1) : d.AddDays(1)) {
-   var l = byOrder.GetValueOrDefault(d) ?? []; vm.Series.Add(new DayPoint(d, l.Sum(o => o.Total), l.Count, label(d)));
-   if (byWaste.TryGetValue(d, out var w)) vm.Discards.Add(new DiscardPoint(label(d), w.Sum(x => x.Quantity), w.Sum(x => x.Value)));
-  }
-  return vm;
- }
 
  public static byte[] ReportXlsx(ReportVm r, string who) {
   var per = r.PeriodUnit == "tháng" ? "Tháng" : "Ngày";

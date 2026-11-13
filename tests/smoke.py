@@ -4,6 +4,7 @@ Never point this test at a production database: it registers two test accounts a
 """
 import html
 import http.cookiejar
+import json
 import os
 import re
 import secrets
@@ -33,10 +34,30 @@ class Client:
         assert token, path
         return self.request(path, dict(values, __RequestVerificationToken=html.unescape(token[1])))
 
+    # JSON API used by the React islands: same customer cookie, CSRF token sent in the RequestVerificationToken header.
+    def api(self, method, path, body=None, csrf=True):
+        headers = {'Accept': 'application/json'}
+        data = None
+        if body is not None:
+            headers['Content-Type'] = 'application/json'
+            data = json.dumps(body).encode()
+            if csrf:
+                token = re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', self.request('/Shop/Cart')[1])
+                assert token, 'CSRF token on cart page'
+                headers['RequestVerificationToken'] = html.unescape(token[1])
+        req = urllib.request.Request(BASE + path, data=data, headers=headers, method=method)
+        try:
+            with self.http.open(req) as response:
+                return response.status, json.loads(response.read().decode() or 'null')
+        except urllib.error.HTTPError as e:
+            return e.code, None
+
 suffix=secrets.token_hex(5)
 user=Client()
 status,body,_=user.request('/')
-assert status==200 and body.count('<article class="product"')==6
+assert status==200 and 'data-island="products"' in body  # cake grid is a React island fed by /api/products
+status,products=user.api('GET','/api/products')
+assert status==200 and len(products)==6
 assert user.request('/Shop/Details/1')[0]==200
 assert user.request('/Shop/Details/9999')[0]==404
 assert '/Account/Login' in user.request('/Shop/Cart')[2]
@@ -54,8 +75,9 @@ assert user.request('/Shop/Add', {'id':1,'quantity':1})[0]==400, 'CSRF must fail
 assert user.post('/Shop/Add', {'id':1,'quantity':100}, '/')[0]==400
 assert user.post('/Shop/Add', {'id':1,'quantity':2}, '/')[0]==200
 assert user.post('/Shop/Add', {'id':6,'quantity':1}, '/')[0]==200
-status,body,_=user.post('/Shop/Update',{'id':6,'quantity':0},'/Shop/Cart')
-assert status==200 and 'Cookie cuddle' not in body
+assert user.api('PUT','/api/cart',{'productId':6,'quantity':0},csrf=False)[0]==400, 'Cart API CSRF must fail'
+status,cart=user.api('PUT','/api/cart',{'productId':6,'quantity':0})
+assert status==200 and cart['count']==2 and all(l['productId']!=6 for l in cart['lines']), cart
 status,body,_=user.post('/Account/Profile',{'Name':'Smoke Baker','Phone':'0901234567','Address':'123 Test Street'})
 assert status==200 and '123 Test Street' in body
 status,body,_=user.request('/Orders/Checkout')
@@ -74,7 +96,7 @@ order_id=url.rsplit('/',1)[1]
 assert '570,000' in body or '570.000' in body, 'Must calculate price from database'
 assert 'Chưa thanh toán' in body
 assert '0901234567' in body and '123 Test Street' in body
-assert 'Chưa có chiếc bánh' in user.request('/Shop/Cart')[1]
+assert user.api('GET','/api/cart')[1]['count']==0, 'Cart cleared after order'
 assert user.request('/Orders/Details/'+order_id)[0]==200
 assert '#RK' in user.request('/Orders')[1]
 status,_,url=user.request('/Orders/Checkout',values)

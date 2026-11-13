@@ -34,5 +34,5 @@ public class AccountController(ShopDbContext db):Controller {
  [HttpGet] public async Task<IActionResult> Profile(){var c=await db.Customers.FindAsync(UserId);if(c==null)return Challenge();ViewBag.Email=c.Email;ViewBag.UserName=c.UserName??"Chưa có tên tài khoản (tài khoản do tiệm tạo)";return View(new ProfileInput{Name=c.FullName,Phone=c.Phone,Address=c.Address??""});}
  [HttpPost] public async Task<IActionResult> Profile(ProfileInput input){var c=await db.Customers.FindAsync(UserId);if(c!=null){ViewBag.Email=c.Email;ViewBag.UserName=c.UserName??"Chưa có tên tài khoản";}if(!ModelState.IsValid)return View(input);if(c==null)return Challenge();c.FullName=input.Name.Trim();c.Phone=(input.Phone??"").Trim();c.Address=string.IsNullOrWhiteSpace(input.Address)?null:input.Address.Trim();await db.SaveChangesAsync();await SignIn(c);TempData["Message"]="Đã lưu hồ sơ và địa chỉ giao hàng.";return RedirectToAction("Profile");}
 }
-// Hai phiên đăng nhập tách riêng: khách (cookie "Rookie", scheme mặc định) và nhân viên (/admin, cookie "rookie-staff").
-public static class Auth { public const string Customer="Rookie", Staff="Cookies"; }
+// Phiên khách (cookie "Rookie", scheme mặc định), nhân viên (/admin, cookie "rookie-staff") và Web API (/api, JWT Bearer).
+public static class Auth { public const string Customer="Rookie", Staff="Cookies", Api="Bearer"; }
