@@ -3,7 +3,7 @@
 <div class="admin-head"><div><div class="eyebrow">ORDER</div><h1>Đơn #@Model.Id <span class="st @Fmt.StatusClass(Model.Status)">@Model.Status</span></h1></div><a class="ghost" asp-action="Orders">← Quay lại</a></div>
 @if (TempData["Msg"] is string msg) {<p class="notice" role="status">@msg</p>}
 <div class="panels">
- <section class="panel"><h2>Khách hàng</h2><p><b>@Model.Customer?.FullName</b></p><p class="hint">@Model.Customer?.Email · @Model.Customer?.Phone<br/>@Model.Customer?.Address</p><p class="hint">Đặt lúc @Fmt.Date(Model.CreatedAt)@(Model.CreatedBy is null ? "" : " · tạo bởi " + Model.CreatedBy)</p>@if (!string.IsNullOrEmpty(Model.Note)) {<p class="hint">Ghi chú: @Model.Note</p>}</section>
+ <section class="panel"><h2>Khách hàng</h2><p><b>@Model.Customer?.FullName</b></p><p class="hint">@Model.Customer?.Email · @Model.Customer?.Phone<br/>@Model.Customer?.Address</p>@if (Model.ShipAddress is not null) {<p class="hint"><b>Giao tới:</b> @Model.ShipName · @Model.ShipPhone<br/>@Model.ShipAddress</p>}<p class="hint">Đặt lúc @Fmt.Date(Model.CreatedAt)@(Model.CreatedBy is null ? "" : " · tạo bởi " + Model.CreatedBy)</p>@if (!string.IsNullOrEmpty(Model.Note)) {<p class="hint">Ghi chú: @Model.Note</p>}</section>
  <section class="panel"><h2>Xác nhận &amp; xử lý</h2>
   @if (Model.Status == OrderStatus.New) {
    <p class="alert">Đơn chưa được nhân viên xác nhận.</p>

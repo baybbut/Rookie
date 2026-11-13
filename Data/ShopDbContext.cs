@@ -14,6 +14,8 @@ public class ShopDbContext(DbContextOptions<ShopDbContext> options) : DbContext(
  m.Entity<Category>().HasIndex(c => c.Name).IsUnique();
  m.Entity<Product>().HasIndex(p => p.Code).IsUnique();
  m.Entity<Staff>().HasIndex(s => s.Username).IsUnique();
+ m.Entity<Customer>().HasIndex(c => c.UserName).IsUnique();
+ m.Entity<Order>().HasIndex(o => new { o.CustomerId, o.RequestKey }).IsUnique();
  m.Entity<Category>().HasData(new Category {Id=1,Name="Bánh kem"}, new Category {Id=2,Name="Bánh ngọt"}, new Category {Id=3,Name="Bánh tart"}, new Category {Id=4,Name="Cookies"});
  m.Entity<Product>().HasData(
  new Product {Id=1,Code="SP001",Name="Strawberry cloud",Description="Bông lan vani · kem tươi · dâu ngọt",Category="Bánh kem",Price=285000,IsBestSeller=true,Image="photo-1464305795204-6f5bbfc7fb81"},
