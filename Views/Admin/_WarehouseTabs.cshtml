@@ -1,0 +1,6 @@
+@model string
+<div class="tabs filters" role="navigation" aria-label="Quản lý kho">
+ <a class="@(Model == "purchases" ? "active" : "")" href="/admin/purchases">Phiếu nhập</a>
+ <a class="@(Model == "stock" ? "active" : "")" href="/admin/stock">Tồn kho</a>
+ <a class="@(Model == "discards" ? "active" : "")" href="/admin/discards">Bánh hủy</a>
+</div>

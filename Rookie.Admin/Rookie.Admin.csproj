@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Rookie.Admin</RootNamespace>
+    <AssemblyName>RookieAdmin</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.22" />
+  </ItemGroup>
+  <!-- Dùng chung model + dữ liệu với web để hai bên cùng đọc/ghi một rookie.db -->
+  <ItemGroup>
+    <Compile Include="..\Models\*.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Data\*.cs" LinkBase="Shared\Data" />
+  </ItemGroup>
+</Project>

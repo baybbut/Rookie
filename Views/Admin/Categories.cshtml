@@ -1,7 +1,7 @@
 @using Rookie.Controllers
 @model List<CategoryRow>
-@{ ViewData["Title"] = "Quản lý sản phẩm"; ViewData["Nav"] = "products"; }
-<div class="admin-head"><div><div class="eyebrow">PRODUCTS</div><h1>Quản lý sản phẩm</h1></div><a class="ghost" href="/admin/products">Tất cả sản phẩm →</a></div>
+@{ ViewData["Title"] = "Quản lý danh mục"; ViewData["Nav"] = "categories"; }
+<div class="admin-head"><div><div class="eyebrow">CATEGORIES</div><h1>Quản lý danh mục</h1></div></div>
 @if (TempData["Msg"] is string msg) {<p class="notice" role="status">@msg</p>}
 <form class="rename add-cat" method="post" asp-action="CreateCategory"><input name="name" maxlength="40" placeholder="Tên danh mục mới…" aria-label="Tên danh mục mới" required/><button class="btn" type="submit">Thêm danh mục <span>+</span></button></form>
 <p class="hint">Đổi tên danh mục sẽ áp dụng cho mọi bánh trong danh mục. Chỉ xóa được danh mục không còn bánh nào. Danh mục bị ẩn sẽ không hiện bánh của nó trên trang bán bánh.</p>
@@ -12,7 +12,7 @@
   <tr class="@(c.Hidden ? "is-hidden" : "")">
    <td><form class="rename" method="post" asp-action="EditCategory" asp-route-id="@c.Id"><input name="name" value="@c.Name" maxlength="40" aria-label="Tên danh mục"/><button class="ghost">Lưu tên</button>@if (c.Hidden) {<span class="st st-cancel">Đang ẩn</span>}</form></td>
    <td class="num">@c.Count</td>
-   <td class="actions"><a class="ghost" href="/admin/products?q=@Uri.EscapeDataString(c.Name)">Xem bánh</a>
+   <td class="actions"><a class="ghost" href="/admin/products?category=@Uri.EscapeDataString(c.Name)">Xem bánh</a>
     <form method="post" asp-action="ToggleCategory" asp-route-id="@c.Id"><button class="ghost">@(c.Hidden ? "Hiện" : "Ẩn")</button></form>
     <form method="post" asp-action="DeleteCategory" asp-route-id="@c.Id" onsubmit="return confirm('Xóa danh mục này?')"><button class="ghost danger" disabled="@(c.Count > 0)" title="@(c.Count > 0 ? "Còn bánh trong danh mục" : "")">Xóa</button></form></td>
   </tr>
