@@ -92,3 +92,19 @@ status,_,url=user.post('/Account/Login',{'Email':username,'Password':'A-secure-t
 assert status==200 and '/Account/Profile' in url
 assert user.request('/Orders/Details/'+order_id)[0]==200
 print('PASS: product details, cart add/update/remove/validation, CSRF, register/login/logout, profile/address, checkout validation, authoritative prices, COD order, cart cleared, idempotent retry, order history and cross-account isolation.')
+
+# Customer and staff cookies must never authenticate each other's protected pages.
+assert '/admin/login' in user.request('/admin')[2]
+if os.environ.get('ROOKIE_TEST_ADMIN_PASSWORD'):
+    staff = Client()
+    status, _, url = staff.post('/admin/login', {
+        'username': 'admin', 'password': os.environ['ROOKIE_TEST_ADMIN_PASSWORD']})
+    assert status == 200 and '/admin/login' not in url, (status, url)
+    assert '/Account/Login' in staff.request('/Account/Profile')[2]
+    assert '/Account/Login' in staff.request('/Orders')[2]
+    for path in ['/admin/customers', '/admin/orders', '/admin/products']:
+        assert staff.request(path)[0] == 200, path
+    status, _, url = staff.post('/admin/logout', {}, '/admin')
+    assert status == 200 and '/admin/login' in url
+    assert '/admin/login' in staff.request('/admin')[2]
+    print('PASS: staff login/pages/logout and customer/staff cookie isolation.')
