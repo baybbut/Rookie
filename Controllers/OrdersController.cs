@@ -1,3 +1,5 @@
+using Order = Rookie.Storefront.Models.Order;
+using OrderItem = Rookie.Storefront.Models.OrderItem;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

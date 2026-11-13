@@ -1,3 +1,4 @@
+using Customer = Rookie.Storefront.Models.Customer;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
