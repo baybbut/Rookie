@@ -6,8 +6,7 @@ using Rookie.Controllers;
 using Rookie.Controllers.Api;
 using Rookie.Data;
 var builder = WebApplication.CreateBuilder(args);
-// IncludeFields: DashboardVm/ReportVm của API dùng field thay vì property.
-builder.Services.AddControllersWithViews(o=>o.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute())).AddJsonOptions(o => o.JsonSerializerOptions.IncludeFields = true);
+builder.Services.AddControllersWithViews(o=>o.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute()));
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(o=>{o.Cookie.HttpOnly=true;o.Cookie.IsEssential=true;o.IdleTimeout=TimeSpan.FromHours(8);});
@@ -43,7 +42,17 @@ builder.Services.AddAuthentication(Auth.Customer)
  } }; });
 builder.Services.AddAuthorization();
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:5173", "http://localhost:3000"]).AllowAnyHeader().AllowAnyMethod()));
+// Swagger UI (/swagger) để thử Web API: chỉ liệt kê route /api, nút "Authorize" nhận JWT lấy từ /api/auth/*.
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(o => {
+ o.SwaggerDoc("v1", new() { Title = "Rookie Bakery API", Version = "v1" });
+ o.DocInclusionPredicate((_, api) => api.RelativePath?.StartsWith("api/") == true);
+ o.AddSecurityDefinition("Bearer", new() { Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT", Description = "Dán token lấy từ POST /api/auth/login hoặc /api/auth/staff." });
+ o.AddSecurityRequirement(new() { [new() { Reference = new() { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "Bearer" } }] = [] });
+});
 var app = builder.Build();
+// Chỉ mở Swagger khi Development để không lộ cấu trúc API khi triển khai thật.
+if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 using (var scope = app.Services.CreateScope()) {
  // Mật khẩu quản trị lấy từ cấu hình Admin:Password; riêng môi trường Development có mặc định "admin".
  DbInit.Prepare(scope.ServiceProvider.GetRequiredService<ShopDbContext>(), app.Configuration["Admin:Password"] ?? (app.Environment.IsDevelopment() ? "admin" : null), app.Environment.IsDevelopment(), m => app.Logger.LogWarning("{Msg}", m));

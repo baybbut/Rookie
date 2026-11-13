@@ -48,6 +48,8 @@ Kiểm thử tạo hai tài khoản và một đơn trên database tạm; kiểm
 ## Web API (`/api`)
 Dành cho website khách viết bằng React và app quản trị WinForms. Hiện app WinForms vẫn đọc thẳng `rookie.db`, chưa gọi qua API. Xác thực bằng JWT: gửi header `Authorization: Bearer <token>`, token hết hạn sau 8 giờ. Mỗi request đều kiểm tra lại DB, nên tài khoản bị khóa/xóa hoặc nhân viên bị đổi vai trò thì token cũ bị từ chối ngay. Khi triển khai thật cần đặt `Jwt:Key` (≥ 32 ký tự), nếu không token mất hiệu lực mỗi lần khởi động lại.
 
+**Thử API bằng Swagger** (chỉ bật ở môi trường Development, mặc định khi chạy `dotnet run`): mở http://localhost:5000/swagger (hoặc cổng bạn đặt bằng `--urls`). Gọi `POST /api/auth/staff` với `{"username":"admin","password":"admin"}`, hoặc `POST /api/auth/login` với `{"email":"khach1@example.com","password":"123456"}`. Sau đó chép `token`, bấm **Authorize**, dán token vào rồi gọi các API cần quyền. Tài khoản mẫu khi chạy Development: quản trị `admin`/`admin`, nhân viên `thuha`/`nhanvien`, khách `khach1@example.com`/`123456` (khách `khach6` đang bị khóa).
+
 | Quyền | Endpoint |
 |---|---|
 | Công khai | `POST auth/register` (giống form đăng ký), `POST auth/login` (khách, email hoặc tên tài khoản), `POST auth/staff` (nhân viên, `{username,password}`), `GET categories`, `GET products[?category=]`, `GET products/{id}` |
