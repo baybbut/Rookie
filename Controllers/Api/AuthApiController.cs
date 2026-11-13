@@ -44,15 +44,15 @@ public class AuthApiController(ShopDbContext db, SymmetricSecurityKey key) : Con
   var s = await db.Staffs.FirstOrDefaultAsync(x => x.Username == u);
   if (s is null || !Pw.Verify(r.Password, s.PasswordHash)) return Unauthorized(new { error = "Sai tên đăng nhập hoặc mật khẩu." });
   if (s.IsLocked) return StatusCode(403, new { error = "Tài khoản này đã bị khóa." });
-  return Ok(Token(s.Id, s.FullName, s.Role));
+  return Ok(Token(s.Id, s.FullName, s.Role, s.Username));
  }
 
  [Authorize(AuthenticationSchemes = Auth.Api), HttpGet("me")]
  public object Me() => new { id = User.FindFirstValue("sub"), name = User.Identity?.Name, role = User.FindFirstValue("role") };
 
- object Token(int id, string name, string role) {
+ object Token(int id, string name, string role, string? username = null) {
   var expires = DateTime.UtcNow.AddHours(8);
   var token = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor { Subject = new ClaimsIdentity([new Claim("sub", id.ToString()), new Claim("name", name), new Claim("role", role)]), Expires = expires, SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256) });
-  return new { token, expires, role, name };
+  return new { token, expires, role, name, id, username };
  }
 }
