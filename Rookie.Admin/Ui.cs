@@ -18,6 +18,8 @@ static class Ui {
  public static void Info(string m) => MessageBox.Show(m, "Rookie", MessageBoxButtons.OK, MessageBoxIcon.Information);
  public static void Err(string m) => MessageBox.Show(m, "Rookie", MessageBoxButtons.OK, MessageBoxIcon.Warning);
  public static bool Ask(string m) => MessageBox.Show(m, "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+ // Dùng trong FieldForm.Check: gọi API lưu; lỗi từ server (trùng tên, sai dữ liệu…) hiện ngay trong hộp thoại thay vì đóng hộp thoại.
+ public static string? Try(Action save) { try { save(); return null; } catch (ApiException e) { return e.Message; } }
 
  public static Color OrderColor(string s) => s switch { OrderStatus.New => Color.FromArgb(247, 227, 181), OrderStatus.Confirmed => Color.FromArgb(227, 220, 241), OrderStatus.Preparing => Mint, OrderStatus.Shipping => Color.FromArgb(212, 227, 238), OrderStatus.Done => Color.FromArgb(200, 232, 205), _ => Color.FromArgb(246, 220, 217) };
  public static Color PurchaseColor(string s) => s switch { PurchaseStatus.Pending => Color.FromArgb(247, 227, 181), PurchaseStatus.Received => Color.FromArgb(200, 232, 205), _ => Color.FromArgb(246, 220, 217) };
@@ -126,7 +128,8 @@ abstract class Page : UserControl {
  }
  void Fire() { if (!quiet) Reload(); }
  protected void ClearButton(Action? extra = null) {
-  var p = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 19, 0, 0) }; p.Controls.Add(Ui.Btn("Xóa lọc", () => ClearFilters(extra))); Filters.Controls.Add(p);
+  // "Làm mới" tải lại dữ liệu mà giữ nguyên bộ lọc (dữ liệu có thể vừa đổi từ web, ví dụ khách vừa đặt đơn).
+  var p = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 19, 0, 0) }; p.Controls.Add(Ui.Btn("Xóa lọc", () => ClearFilters(extra))); p.Controls.Add(Ui.Btn("Làm mới", Reload)); Filters.Controls.Add(p);
  }
  protected void ClearFilters(Action? extra = null) {
   quiet = true;

@@ -1,5 +1,4 @@
 ﻿using System.Drawing.Printing;
-using Microsoft.EntityFrameworkCore;
 using Rookie.Models;
 namespace Rookie.Admin;
 
@@ -23,21 +22,20 @@ class PurchasesSub : Page {
  }
  void Buttons() { var pending = G.Pick<Purchase>()?.Status == PurchaseStatus.Pending; bReceive.Enabled = bCancel.Enabled = pending; }
  public override void Reload() {
-  using var db = Db.New(); var t = q.Text.Trim().TrimStart('#'); int? d = day.SelectedIndex > 0 ? day.SelectedIndex : null, m = month.SelectedIndex > 0 ? month.SelectedIndex : null; var st = Sel(status);
-  var list = db.Purchases.AsNoTracking().Include(p => p.Items).OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id).ToList()
+  var t = q.Text.Trim().TrimStart('#'); int? d = day.SelectedIndex > 0 ? day.SelectedIndex : null, m = month.SelectedIndex > 0 ? month.SelectedIndex : null; var st = Sel(status);
+  var list = Api.Get<List<Purchase>>("api/admin/purchases")
    .Where(p => Svc.InDate(p.CreatedAt, d, m, Num(year.Text)) && (st is null || p.Status == st) && (t == "" || p.Id.ToString() == t || Svc.Has(p.Supplier, t) || p.Items.Any(i => Svc.Has(i.ItemName, t)))).ToList();
   G.Load(list, p => [$"#{p.Id}", p.Supplier, Fmt.Day(p.CreatedAt), $"{p.Items.Sum(i => i.Quantity)} bánh · {p.Items.Count} loại", Fmt.Vnd(p.Total), p.Status], (r, p) => Grid.Tint(r, 5, Ui.PurchaseColor(p.Status))); Note($"{list.Count} phiếu"); Buttons();
  }
+ // Server chỉ cho xác nhận/hủy phiếu "Chờ nhập kho" và ghi tên người xác nhận theo token.
  void Receive() {
-  if (G.Pick<Purchase>() is not { } sel) return; using var db = Db.New(); var p = db.Purchases.Include(x => x.Items).First(x => x.Id == sel.Id);
-  if (p.Status != PurchaseStatus.Pending) { Ui.Err($"Phiếu #{p.Id} đang ở trạng thái “{p.Status}”, không xác nhận được."); return; }
+  if (G.Pick<Purchase>() is not { } p) return;
   if (!Ui.Ask($"Xác nhận nhập kho phiếu #{p.Id}?\n{p.Items.Sum(i => i.Quantity)} bánh sẽ được cộng vào tồn kho.")) return;
-  (p.Status, p.ReceivedAt, p.ReceivedBy) = (PurchaseStatus.Received, DateTime.Now, Session.Name); db.SaveChanges(); Note($"{Session.Name} đã xác nhận nhập kho phiếu #{p.Id}.");
+  var x = Api.Post<Purchase>($"api/admin/purchases/{p.Id}/receive"); Note($"{x.ReceivedBy} đã xác nhận nhập kho phiếu #{x.Id}.");
  }
  void Cancel() {
-  if (G.Pick<Purchase>() is not { } sel) return; using var db = Db.New(); var p = db.Purchases.Find(sel.Id)!;
-  if (p.Status != PurchaseStatus.Pending) { Ui.Err($"Phiếu #{p.Id} đang ở trạng thái “{p.Status}”, không hủy được."); return; }
-  if (!Ui.Ask($"Hủy phiếu nhập #{p.Id}? Không thể mở lại.")) return; p.Status = PurchaseStatus.Cancelled; db.SaveChanges(); Note($"Đã hủy phiếu #{p.Id}.");
+  if (G.Pick<Purchase>() is not { } p) return;
+  if (!Ui.Ask($"Hủy phiếu nhập #{p.Id}? Không thể mở lại.")) return; Api.Post($"api/admin/purchases/{p.Id}/cancel"); Note($"Đã hủy phiếu #{p.Id}.");
  }
  void Detail() {
   if (G.Pick<Purchase>() is not { } p) return;
@@ -48,7 +46,7 @@ class PurchasesSub : Page {
   f.Controls.Add(g); f.Controls.Add(total); f.Controls.Add(info); f.ShowDialog(this);
  }
  void Create() {
-  using var db = Db.New(); var suppliers = db.Suppliers.AsNoTracking().OrderBy(s => s.Name).Select(s => s.Name).ToList(); var products = db.Products.AsNoTracking().OrderBy(p => p.Id).ToList();
+  var suppliers = Api.Get<List<Supplier>>("api/admin/suppliers").Select(s => s.Name).ToList(); var products = Api.Get<List<Product>>("api/admin/products"); Purchase? saved = null;
   using var f = new FieldForm("Tạo phiếu nhập", "Lưu phiếu nhập", 470);
   var cSup = f.Add("Xưởng bánh", FieldForm.Combo(suppliers.Cast<object>())); var dDate = f.Add("Ngày lập phiếu", new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy", MaxDate = DateTime.Today, Value = DateTime.Today }); var tNote = f.Add("Ghi chú", FieldForm.Txt(null, 200));
   var grid = new TableLayoutPanel { AutoSize = true, ColumnCount = 4, Dock = DockStyle.Top, Margin = new Padding(0, 8, 0, 0) };
@@ -64,12 +62,11 @@ class PurchasesSub : Page {
   f.AddWide(grid); f.AddWide(total); f.AddWide(Ui.Lbl("Phiếu mới ở trạng thái “Chờ nhập kho”: số bánh chỉ được cộng vào tồn kho sau khi bạn xác nhận.", Ui.Small, Ui.Muted));
   f.Check = () => {
    if (suppliers.Count == 0) return "Chưa có xưởng bánh nào."; if (rows.Any(r => r.Q.Value > 0 && r.P.SelectedIndex <= 0)) return "Có dòng đã nhập số lượng nhưng chưa chọn bánh.";
-   if (!rows.Any(r => r.P.SelectedIndex > 0 && r.Q.Value > 0)) return "Hãy chọn ít nhất một loại bánh với số lượng > 0."; return null;
+   if (!rows.Any(r => r.P.SelectedIndex > 0 && r.Q.Value > 0)) return "Hãy chọn ít nhất một loại bánh với số lượng > 0.";
+   var items = rows.Where(r => r.P.SelectedIndex > 0 && r.Q.Value > 0).Select(r => new PurchaseRow { ProductId = products[r.P.SelectedIndex - 1].Id, Quantity = (int)r.Q.Value, UnitCost = r.C.Value }).ToList();
+   return Ui.Try(() => saved = Api.Post<Purchase>("api/admin/purchases", new { supplier = (string)cSup.SelectedItem!, date = dDate.Value.Date, note = string.IsNullOrWhiteSpace(tNote.Text) ? null : tNote.Text.Trim(), items }));
   };
-  if (f.ShowDialog() != DialogResult.OK) return;
-  var pu = new Purchase { Supplier = (string)cSup.SelectedItem!, CreatedAt = dDate.Value.Date, CreatedBy = Session.Name, Note = string.IsNullOrWhiteSpace(tNote.Text) ? null : tNote.Text.Trim() };
-  foreach (var r in rows.Where(r => r.P.SelectedIndex > 0 && r.Q.Value > 0)) { var p = products[r.P.SelectedIndex - 1]; pu.Items.Add(new PurchaseItem { ProductId = p.Id, ItemName = p.Name, Unit = p.Unit, Quantity = (int)r.Q.Value, UnitCost = r.C.Value }); }
-  db.Purchases.Add(pu); db.SaveChanges(); Note($"Đã lưu phiếu nhập #{pu.Id}. Hãy kiểm hàng và xác nhận để cộng vào tồn kho.");
+  if (f.ShowDialog() == DialogResult.OK && saved is not null) Note($"Đã lưu phiếu nhập #{saved.Id}. Hãy kiểm hàng và xác nhận để cộng vào tồn kho.");
  }
 }
 
@@ -80,7 +77,7 @@ class StockSub : Page {
   G.Setup("Mã|0.6", "Bánh|2.6", "Đơn vị|0.6", ">Đã nhập|0.8", ">Đã bán|0.8", ">Đã hủy|0.8", ">Tồn kho|0.8", "Tình trạng|1");
  }
  public override void Reload() {
-  using var db = Db.New(); var rows = Svc.Stock(db).Where(s => (Svc.Has(s.Product.Name, q.Text) || Svc.Has(s.Product.Code, q.Text)) && (level.SelectedIndex == 0 || s.Left <= Svc.LowStock)).ToList();
+  var rows = Api.Get<List<StockRow>>("api/admin/stock").Where(s => (Svc.Has(s.Product.Name, q.Text) || Svc.Has(s.Product.Code, q.Text)) && (level.SelectedIndex == 0 || s.Left <= Svc.LowStock)).ToList();
   G.Load(rows, s => [s.Product.Code, $"{s.Product.Name}  ({s.Product.Category})", s.Product.Unit, s.In, s.Sold, s.Wasted, s.Left, s.Left < 0 ? "Âm kho" : s.Left == 0 ? "Hết hàng" : s.Left <= Svc.LowStock ? "Sắp hết" : "Còn hàng"],
    (r, s) => Grid.Tint(r, 7, s.Left <= 0 ? Color.FromArgb(246, 220, 217) : s.Left <= Svc.LowStock ? Color.FromArgb(247, 227, 181) : Color.FromArgb(200, 232, 205)));
   Note("Tồn = đã nhập kho (phiếu đã xác nhận) − đã bán (đơn chưa hủy) − bánh hủy.");
@@ -94,20 +91,22 @@ class DiscardsSub : Page {
   G.Setup("Ngày hủy", "Bánh", ">Số lượng", "Lý do", ">Giá trị", "Người ghi"); Act("Ghi nhận bánh hủy", Create, primary: true);
  }
  public override void Reload() {
-  using var db = Db.New(); int? d = day.SelectedIndex > 0 ? day.SelectedIndex : null, m = month.SelectedIndex > 0 ? month.SelectedIndex : null;
-  var list = db.Discards.AsNoTracking().OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).ToList().Where(x => Svc.InDate(x.CreatedAt, d, m, Num(year.Text)) && (Svc.Has(x.ProductName, q.Text) || Svc.Has(x.Reason, q.Text))).ToList();
+  int? d = day.SelectedIndex > 0 ? day.SelectedIndex : null, m = month.SelectedIndex > 0 ? month.SelectedIndex : null;
+  var list = Api.Get<List<Discard>>("api/admin/discards").Where(x => Svc.InDate(x.CreatedAt, d, m, Num(year.Text)) && (Svc.Has(x.ProductName, q.Text) || Svc.Has(x.Reason, q.Text))).ToList();
   G.Load(list, x => [Fmt.Day(x.CreatedAt), x.ProductName, $"{x.Quantity} {x.Unit}", x.Reason, Fmt.Vnd(x.Value), x.CreatedBy]); Note($"{list.Count} lượt hủy · {list.Sum(x => x.Quantity)} bánh · {Fmt.Vnd(list.Sum(x => x.Value))}");
  }
  void Create() {
-  using var db = Db.New(); var stock = Svc.Stock(db);
+  var stock = Api.Get<List<StockRow>>("api/admin/stock");
   using var f = new FieldForm("Ghi nhận bánh hủy", "Ghi nhận", 340);
   var cProd = f.Add("Bánh", FieldForm.Combo(stock.Select(s => (object)$"{s.Product.Code} · {s.Product.Name} (tồn {s.Left} {s.Product.Unit})"))); var nQty = f.Add("Số lượng", FieldForm.Num(1, 1, 100000));
   var cReason = f.Add("Lý do", FieldForm.Combo(DiscardReasons.All)); var dDate = f.Add("Ngày hủy", new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy", MaxDate = DateTime.Today, Value = DateTime.Today }); var tNote = f.Add("Ghi chú", FieldForm.Txt(null, 100));
-  f.Check = () => { if (cProd.SelectedIndex < 0) return "Hãy chọn loại bánh."; var s = stock[cProd.SelectedIndex]; return nQty.Value > s.Left ? $"Chỉ còn {s.Left} {s.Product.Unit} “{s.Product.Name}” trong kho." : null; };
+  // Server kiểm tra lại số tồn lúc ghi (có thể vừa thay đổi) và ghi tên người ghi nhận theo token.
+  f.Check = () => {
+   if (cProd.SelectedIndex < 0) return "Hãy chọn loại bánh."; var s = stock[cProd.SelectedIndex]; if (nQty.Value > s.Left) return $"Chỉ còn {s.Left} {s.Product.Unit} “{s.Product.Name}” trong kho.";
+   return Ui.Try(() => Api.Post("api/admin/discards", new { productId = s.Product.Id, quantity = (int)nQty.Value, reason = (string)cReason.SelectedItem!, note = string.IsNullOrWhiteSpace(tNote.Text) ? null : tNote.Text.Trim(), date = dDate.Value.Date }));
+  };
   if (f.ShowDialog() != DialogResult.OK) return;
-  var s = stock[cProd.SelectedIndex]; var day = dDate.Value.Date; var n = string.IsNullOrWhiteSpace(tNote.Text) ? null : tNote.Text.Trim(); var reason = (string)cReason.SelectedItem!;
-  db.Discards.Add(new Discard { ProductId = s.Product.Id, ProductName = s.Product.Name, Unit = s.Product.Unit, Quantity = (int)nQty.Value, UnitPrice = s.Product.Price, Reason = n is null ? reason : $"{reason}: {n}", CreatedAt = day == DateTime.Today ? DateTime.Now : day.AddHours(12), CreatedBy = Session.Name });
-  db.SaveChanges(); Note($"Đã ghi nhận hủy {(int)nQty.Value} {s.Product.Unit} “{s.Product.Name}”.");
+  var p = stock[cProd.SelectedIndex].Product; Note($"Đã ghi nhận hủy {(int)nQty.Value} {p.Unit} “{p.Name}”.");
  }
 }
 
@@ -136,7 +135,8 @@ class ReportsPage : Page {
  void Quick(int days) { to.Value = DateTime.Today; from.Value = DateTime.Today.AddDays(-(days - 1)); type.SelectedIndex = 0; Reload(); }
  string Kind => type.SelectedIndex == 1 ? "month" : type.SelectedIndex == 2 ? "year" : "range";
  public override void Reload() {
-  using var db = Db.New(); var r = cur = Svc.Report(db, Kind, from.Value.Date, to.Value.Date, month.Value, (int)year.Value); var unit = r.PeriodUnit == "tháng" ? "Tháng" : "Ngày";
+  // Báo cáo do server tính (GET /api/admin/reports), cùng công thức với trang /admin.
+  var r = cur = Api.Get<ReportVm>($"api/admin/reports?type={Kind}&from={from.Value:yyyy-MM-dd}&to={to.Value:yyyy-MM-dd}&month={month.Value:yyyy-MM}&year={(int)year.Value}"); var unit = r.PeriodUnit == "tháng" ? "Tháng" : "Ngày";
   period.Text = $"Kỳ báo cáo: {r.Title}"; vals["rev"].Text = Fmt.Vnd(r.Revenue); vals["cnt"].Text = r.OrderCount.ToString(); vals["avg"].Text = Fmt.Vnd(r.AvgOrder); vals["w"].Text = r.Wasted.ToString(); vals["wv"].Text = Fmt.Vnd(r.WastedValue);
   chart.Set(r.Series.Select(d => (d.Label ?? Fmt.Day(d.Day), d.Revenue, $"{d.Label} · {Fmt.Vnd(d.Revenue)} · {d.Orders} đơn")));
   revenue.Columns[0].HeaderText = unit.ToUpperInvariant(); waste.Columns[0].HeaderText = unit.ToUpperInvariant();

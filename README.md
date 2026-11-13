@@ -9,12 +9,28 @@ dotnet run --urls http://localhost:5080
 
 WinForms chỉ chạy trên Windows và không dùng để render website. Có thể xây dựng ứng dụng quản trị WinForms riêng kết nối API trong giai đoạn sau.
 
+## React islands (phần tương tác của trang khách)
+Các trang khách vẫn là Razor (C#). Riêng những phần cần tương tác thì dùng React và gắn vào chỗ `<div data-island="...">` trên trang:
+- **Trang chủ, mục “Hôm nay, bạn thèm gì?”**: tab lọc, tìm kiếm và lưới bánh lấy từ `GET /api/products`.
+- **Nút “+” trên thẻ bánh ở `/Shop`**: thêm vào giỏ, không tải lại trang.
+- **Trang giỏ hàng**: đổi số lượng, xóa bánh, tổng tiền cập nhật ngay.
+
+Code React nằm ở `client/src` và được build thành **một file** `wwwroot/js/islands/islands.js`. File này đã có sẵn trong repo, nên chỉ chạy web thì **không cần cài Node.js**. Nếu sửa code React (cần Node.js 18+):
+```sh
+cd client
+npm install        # lần đầu
+npm run build      # build lại wwwroot/js/islands/islands.js; hoặc `npm run watch` để tự build khi sửa
+```
+Sau khi build, tải lại trang. Nhớ commit cả file `islands.js` mới. Các island gọi `/api/cart` bằng chính cookie đăng nhập của khách (không dùng JWT), kèm token chống CSRF lấy từ trang.
+
 ## Ứng dụng quản trị WinForms
-`Rookie.Admin/` là app quản trị WinForms (Windows, .NET 8) dùng chung model và file `rookie.db` với web, nên dữ liệu hai bên luôn khớp. Web admin (`/admin`) vẫn còn nguyên.
+`Rookie.Admin/` là app quản trị WinForms (Windows, .NET 8). App **không mở database**: đăng nhập và mọi thao tác đều gọi Web API (`/api/auth/staff`, `/api/admin/...`) bằng JWT. Vì vậy nghiệp vụ, xác thực và phân quyền đều do server kiểm tra. Nhân viên thường không gọi được API nhân sự (403). Tài khoản bị khóa, bị xóa hay bị đổi vai trò trong lúc đang mở app sẽ bị tự đăng xuất ở thao tác kế tiếp. Web admin (`/admin`) vẫn còn nguyên.
+
+**Phải chạy web trước** (`dotnet run` ở thư mục gốc), rồi mở app ở terminal khác:
 ```sh
 dotnet run --project Rookie.Admin
 ```
-Đăng nhập `admin` / `admin` (đặt biến môi trường `Admin__Password` để đổi mật khẩu cho lần tạo DB đầu tiên). App tự tìm `rookie.db` ở thư mục dự án web; đặt `ROOKIE_DB` để chỉ file khác. Nếu chưa có DB, app tạo mới kèm dữ liệu mẫu. Xuất Excel ghi file .xlsx; xuất PDF dùng máy in "Microsoft Print to PDF" của Windows.
+Đăng nhập `admin` / `admin` (quản trị) hoặc `thuha` / `nhanvien` (nhân viên). App gọi server ở `http://localhost:5000`; đặt biến môi trường `ROOKIE_API` để chỉ địa chỉ khác (ví dụ máy chủ trong mạng LAN). Database do web tạo (kèm dữ liệu mẫu) khi chạy lần đầu. Xuất Excel ghi file .xlsx; xuất PDF dùng máy in "Microsoft Print to PDF" của Windows. Chế độ chụp giao diện `RookieAdmin.exe --screenshots <thư mục>` cũng phải đăng nhập thật, bằng biến môi trường `ROOKIE_USER` / `ROOKIE_PASS`.
 - `/`: bánh bán chạy/bánh mới; “Xem tất cả bánh” mở `/Shop`.
 - `/Shop`: trang riêng với tìm kiếm, bộ lọc loại bánh/bánh mới/bán chạy và sắp xếp giá.
 - `/Shop/Details/1`: chi tiết bánh và chọn số lượng.
@@ -45,4 +61,18 @@ ROOKIE_TEST_URL=http://127.0.0.1:5081 python3 tests/smoke.py
 ```
 Kiểm thử tạo hai tài khoản và một đơn trên database tạm; kiểm tra CSRF, giỏ, đăng ký/đăng nhập, hồ sơ, checkout, giá phía server, gửi lại đơn và quyền truy cập giữa hai tài khoản.
 
-WinForms chỉ chạy trên Windows; ứng dụng quản trị WinForms riêng chưa được xây dựng.
+## Web API (`/api`)
+Dành cho website khách viết bằng React và app quản trị WinForms. Hiện app WinForms vẫn đọc thẳng `rookie.db`, chưa gọi qua API. Xác thực bằng JWT: gửi header `Authorization: Bearer <token>`, token hết hạn sau 8 giờ. Mỗi request đều kiểm tra lại DB, nên tài khoản bị khóa/xóa hoặc nhân viên bị đổi vai trò thì token cũ bị từ chối ngay. Khi triển khai thật cần đặt `Jwt:Key` (≥ 32 ký tự), nếu không token mất hiệu lực mỗi lần khởi động lại.
+
+**Thử API bằng Swagger** (chỉ bật ở môi trường Development, mặc định khi chạy `dotnet run`): mở http://localhost:5000/swagger (hoặc cổng bạn đặt bằng `--urls`). Gọi `POST /api/auth/staff` với `{"username":"admin","password":"admin"}`, hoặc `POST /api/auth/login` với `{"email":"khach1@example.com","password":"123456"}`. Sau đó chép `token`, bấm **Authorize**, dán token vào rồi gọi các API cần quyền. Tài khoản mẫu khi chạy Development: quản trị `admin`/`admin`, nhân viên `thuha`/`nhanvien`, khách `khach1@example.com`/`123456` (khách `khach6` đang bị khóa).
+
+| Quyền | Endpoint |
+|---|---|
+| Công khai | `POST auth/register` (giống form đăng ký), `POST auth/login` (khách, email hoặc tên tài khoản), `POST auth/staff` (nhân viên, `{username,password}`), `GET categories`, `GET products[?category=]`, `GET products/{id}` |
+| Đã đăng nhập | `GET auth/me` |
+| Khách (`Customer`) | `GET/PUT me/profile`; `POST orders` `{items:[{productId,quantity}],name,phone,address,note,requestKey}`; `GET orders/mine`, `GET orders/mine/{id}`, `POST orders/mine/{id}/cancel` (chỉ khi đơn còn “Mới”) |
+| Nhân viên (“Quản trị” hoặc “Nhân viên”) | `GET admin/dashboard`, `GET admin/reports?type=range&from=&to=` \| `type=month&month=yyyy-MM` \| `type=year&year=`; CRUD `admin/products`, `admin/categories`; `admin/customers` (+ `POST {id}/lock`); `admin/orders` (+ `PUT {id}/status` theo đúng quy trình, `GET admin/order-statuses`); `GET admin/suppliers`, `GET admin/stock`; `admin/purchases` (+ `POST {id}/receive`, `POST {id}/cancel`); `admin/discards`, `GET admin/discard-reasons` |
+| Khách đăng nhập trên web (cookie + CSRF, cho React islands) | `GET /api/cart`, `POST /api/cart` `{productId,quantity}` (cộng thêm), `PUT /api/cart` (đặt số lượng, 0 = xóa) |
+| Chỉ “Quản trị” | `GET/POST admin/staff`, `PUT admin/staff/{id}`, `POST admin/staff/{id}/lock` |
+
+Lỗi nghiệp vụ trả về `{ "error": "..." }` (400/409), lỗi dữ liệu nhập trả về ProblemDetails (400). Các API đăng nhập/đăng ký giới hạn 10 lần/phút mỗi IP. CORS mặc định cho `http://localhost:5173` và `:3000`, đổi bằng `Cors:Origins`.

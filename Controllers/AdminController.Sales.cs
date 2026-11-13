@@ -116,6 +116,6 @@ public partial class AdminController {
  async Task LoadOrderForm() {
   ViewBag.Customers = await db.Customers.AsNoTracking().Where(c => !c.IsLocked).OrderBy(c => c.FullName).ToListAsync();
   ViewBag.Products = await db.Products.AsNoTracking().OrderBy(p => p.Id).ToListAsync();
-  ViewBag.Stock = (await StockRows()).ToDictionary(s => s.Product.Id, s => s.Left);
+  ViewBag.Stock = (await StockRows(db)).ToDictionary(s => s.Product.Id, s => s.Left);
  }
 }

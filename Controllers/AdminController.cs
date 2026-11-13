@@ -33,12 +33,14 @@ public partial class AdminController(ShopDbContext db) : Controller {
  public async Task<IActionResult> Logout() { await HttpContext.SignOutAsync(Auth.Staff); return RedirectToAction(nameof(Login)); }
 
  [HttpGet("")]
- public async Task<IActionResult> Index() {
+ public async Task<IActionResult> Index() => View(await BuildDashboard(db));
+
+ internal static async Task<DashboardVm> BuildDashboard(ShopDbContext db) {
   var orders = await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).ToListAsync();
   var purchases = await db.Purchases.AsNoTracking().Include(p => p.Items).Where(p => p.Status == PurchaseStatus.Received).ToListAsync();
   var today = DateTime.Today; var month = new DateTime(today.Year, today.Month, 1);
   var live = orders.Where(o => o.Status != OrderStatus.Cancelled).ToList();
-  return View(new DashboardVm {
+  return new DashboardVm {
    RevenueToday = live.Where(o => o.CreatedAt >= today).Sum(o => o.Total),
    RevenueMonth = live.Where(o => o.CreatedAt >= month).Sum(o => o.Total),
    PurchaseMonth = purchases.Where(p => p.CreatedAt >= month).Sum(p => p.Total),
@@ -48,7 +50,7 @@ public partial class AdminController(ShopDbContext db) : Controller {
    Days = Series(live, today.AddDays(-6), 7),
    Recent = orders.OrderByDescending(o => o.CreatedAt).Take(6).ToList(),
    TopProducts = TopProducts(live.Where(o => o.CreatedAt >= today.AddDays(-29)), 5),
-  });
+  };
  }
 
  static List<DayPoint> Series(IEnumerable<Order> live, DateTime from, int days) {

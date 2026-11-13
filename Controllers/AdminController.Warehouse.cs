@@ -7,7 +7,7 @@ namespace Rookie.Controllers;
 public partial class AdminController {
  static bool InDate(DateTime d, int? day, int? month, int? year) => (day is null || d.Day == day) && (month is null || d.Month == month) && (year is null || d.Year == year);
 
- async Task<List<StockRow>> StockRows() {
+ internal static async Task<List<StockRow>> StockRows(Rookie.Data.ShopDbContext db) {
   var products = await db.Products.AsNoTracking().OrderBy(p => p.Id).ToListAsync();
   var inn = (await db.Purchases.AsNoTracking().Include(p => p.Items).Where(p => p.Status == PurchaseStatus.Received).ToListAsync()).SelectMany(p => p.Items).GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
   var sold = (await db.Orders.AsNoTracking().Include(o => o.Items).Where(o => o.Status != OrderStatus.Cancelled).ToListAsync()).SelectMany(o => o.Items).GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
@@ -73,7 +73,7 @@ public partial class AdminController {
  // ---- Tồn kho ----
  [HttpGet("stock")]
  public async Task<IActionResult> Stock(string? q, string? level) {
-  var rows = (await StockRows()).Where(s => (Has(s.Product.Name, q) || Has(s.Product.Code, q)) && (level != "low" || s.Left <= LowStock)).ToList();
+  var rows = (await StockRows(db)).Where(s => (Has(s.Product.Name, q) || Has(s.Product.Code, q)) && (level != "low" || s.Left <= LowStock)).ToList();
   ViewBag.Q = q; ViewBag.Level = level; ViewBag.Low = LowStock;
   return View(rows);
  }
@@ -83,13 +83,13 @@ public partial class AdminController {
  [HttpGet("discards")]
  public async Task<IActionResult> Discards(string? q, int? day, int? month, int? year) {
   var all = await db.Discards.AsNoTracking().OrderByDescending(d => d.CreatedAt).ThenByDescending(d => d.Id).ToListAsync();
-  ViewBag.Q = q; ViewBag.Date = new DateFilter(day, month, year); ViewBag.Stock = await StockRows();
+  ViewBag.Q = q; ViewBag.Date = new DateFilter(day, month, year); ViewBag.Stock = await StockRows(db);
   return View(all.Where(d => InDate(d.CreatedAt, day, month, year) && (Has(d.ProductName, q) || Has(d.Reason, q))).ToList());
  }
 
  [HttpPost("discards/create"), ValidateAntiForgeryToken]
  public async Task<IActionResult> CreateDiscard(int productId, int quantity, string? reason, string? note, DateTime? date) {
-  var stock = (await StockRows()).FirstOrDefault(s => s.Product.Id == productId);
+  var stock = (await StockRows(db)).FirstOrDefault(s => s.Product.Id == productId);
   var day = (date ?? DateTime.Today).Date;
   string? err = stock is null ? "Hãy chọn loại bánh." : quantity < 1 ? "Số lượng hủy phải từ 1 trở lên." : quantity > stock.Left ? $"Chỉ còn {stock.Left} {stock.Product.Unit} “{stock.Product.Name}” trong kho." : !DiscardReasons.All.Contains(reason ?? "") ? "Hãy chọn lý do hủy." : day > DateTime.Today ? "Ngày hủy không được ở tương lai." : null;
   if (err is not null) { TempData["Err"] = err; return RedirectToAction(nameof(Discards)); }
