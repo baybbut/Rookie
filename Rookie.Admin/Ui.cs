@@ -126,7 +126,8 @@ abstract class Page : UserControl {
  }
  void Fire() { if (!quiet) Reload(); }
  protected void ClearButton(Action? extra = null) {
-  var p = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 19, 0, 0) }; p.Controls.Add(Ui.Btn("Xóa lọc", () => ClearFilters(extra))); Filters.Controls.Add(p);
+  // "Làm mới" tải lại dữ liệu mà giữ nguyên bộ lọc (dữ liệu có thể vừa đổi từ web, ví dụ khách vừa đặt đơn).
+  var p = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 19, 0, 0) }; p.Controls.Add(Ui.Btn("Xóa lọc", () => ClearFilters(extra))); p.Controls.Add(Ui.Btn("Làm mới", Reload)); Filters.Controls.Add(p);
  }
  protected void ClearFilters(Action? extra = null) {
   quiet = true;

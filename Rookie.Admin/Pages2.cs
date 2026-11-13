@@ -51,7 +51,6 @@ class OrdersPage : Page {
   G.Setup("Mã|0.45", "Khách hàng|1.7", "Thời gian|1.25", "Sản phẩm|2.4", ">Tổng|1", "Trạng thái|1", "Xác nhận bởi|1.3");
   bConfirm = Act("Xác nhận đơn", () => Advance(OrderStatus.Confirmed, "Xác nhận"), primary: true); bNext = Act("Chuyển bước tiếp", () => { if (G.Pick<Order>() is { } o && OrderStatus.Next(o.Status) is { } n) Advance(n, "Chuyển"); });
   bCancel = Act("Hủy đơn", () => Advance(OrderStatus.Cancelled, "Hủy"), danger: true); Act("Chi tiết", Detail, reload: false); G.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Detail(); }; G.SelectionChanged += (_, _) => Buttons();
-  Act("Làm mới", () => { });
   poll.Tick += (_, _) => { if (!Visible) return; using var db = Db.New(); if ((db.Orders.Max(o => (int?)o.Id) ?? 0) > lastId) Reload(); }; poll.Start();
  }
  public void FilterCustomer(int id) { customer = id; Reload(); }
