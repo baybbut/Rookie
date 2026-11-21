@@ -12,7 +12,7 @@ builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(o=>{o.Cookie.HttpOnly=true;o.Cookie.IsEssential=true;o.IdleTimeout=TimeSpan.FromHours(8);});
 builder.Services.AddScoped<Rookie.Services.CartService>();
 builder.Services.AddRateLimiter(o=>{o.RejectionStatusCode=429;o.AddPolicy("auth",context=>System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString()??"local",_=>new System.Threading.RateLimiting.FixedWindowRateLimiterOptions{PermitLimit=10,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));});
-// SQL Server: chuỗi kết nối ConnectionStrings:Shop trong appsettings.json (mặc định SQL Server trên máy, đăng nhập Windows, database RookieBakery).
+// SQL Server: chuỗi kết nối ConnectionStrings:Shop trong appsettings.json (mặc định SQL Server trên máy, đăng nhập Windows, database RookieDB).
 builder.Services.AddDbContext<ShopDbContext>(o => o.UseSqlServer(builder.Configuration.GetConnectionString("Shop") ?? DbInit.DefaultConnection));
 // shortcut: thiếu Jwt:Key (≥ 32 ký tự) thì sinh khóa ngẫu nhiên, mọi token mất hiệu lực khi restart; đặt Jwt:Key khi triển khai thật.
 var jwtKey = new SymmetricSecurityKey(builder.Configuration["Jwt:Key"] is { Length: >= 32 } k ? System.Text.Encoding.UTF8.GetBytes(k) : System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));

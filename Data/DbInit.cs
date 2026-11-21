@@ -7,7 +7,7 @@ namespace Rookie.Data;
 // lần chạy sau DB cũ được BACKUP ra file .bak (thư mục backup mặc định của SQL Server) rồi xóa và tạo lại kèm dữ liệu mẫu.
 public static class DbInit {
  public const int SchemaVersion = 3;
- public const string DefaultConnection = "Server=.;Database=RookieBakery;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True";
+ public const string DefaultConnection = "Server=.;Database=RookieDB;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True";
 
  public static void Prepare(ShopDbContext db, string? adminPassword, bool demo, Action<string>? log = null) {
   if (db.GetService<IRelationalDatabaseCreator>().Exists() && Version(db) is var (v, hasTables) && v < SchemaVersion && hasTables) {
