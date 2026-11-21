@@ -6,3 +6,7 @@ obj/
 .vs/
 *.db.bak-*
 client/node_modules/
+*.docx
+CLAUDE.md
+.claude/
+docs/superpowers/

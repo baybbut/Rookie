@@ -10,6 +10,8 @@ public class ShopDbContext(DbContextOptions<ShopDbContext> options) : DbContext(
  public DbSet<Supplier> Suppliers => Set<Supplier>();
  public DbSet<Discard> Discards => Set<Discard>();
  public DbSet<Staff> Staffs => Set<Staff>();
+ // Tiền (decimal) lưu decimal(18,2) trên SQL Server; không khai báo thì EF cảnh báo và có thể cắt số.
+ protected override void ConfigureConventions(ModelConfigurationBuilder b) => b.Properties<decimal>().HavePrecision(18, 2);
  protected override void OnModelCreating(ModelBuilder m) {
  m.Entity<Category>().HasIndex(c => c.Name).IsUnique();
  m.Entity<Product>().HasIndex(p => p.Code).IsUnique();
