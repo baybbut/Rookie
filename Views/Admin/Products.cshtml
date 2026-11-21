@@ -14,7 +14,7 @@
  <tbody>
  @foreach (var p in Model) {
   <tr>
-   <td><img class="thumb" src="https://images.unsplash.com/@(p.Image)?auto=format&fit=crop&w=120&q=70" alt="" loading="lazy"/></td>
+   <td><img class="thumb" src="@Product.Url(p.Image, 120)" alt="" loading="lazy"/></td>
    <td><b>@p.Code</b></td>
    <td><b>@p.Name</b><small>@p.Description</small></td>
    <td>@p.Category</td>

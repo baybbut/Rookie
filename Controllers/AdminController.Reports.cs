@@ -32,8 +32,14 @@ public partial class AdminController {
   else { end = (dt ?? today).Date; start = (df ?? end.AddDays(-29)).Date; if (start > end) (start, end) = (end, start); if ((end - start).TotalDays > 365) start = end.AddDays(-365); vm.Title = $"{Fmt.Day(start)} – {Fmt.Day(end)}"; }
   (vm.From, vm.To, vm.Month, vm.Year) = (start, end, m.ToString("yyyy-MM"), type == "year" ? y : today.Year);
 
-  var orders = await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).Where(o => o.CreatedAt >= start && o.CreatedAt < end.AddDays(1) && o.Status != OrderStatus.Cancelled).ToListAsync();
-  var discards = await db.Discards.AsNoTracking().Where(d => d.CreatedAt >= start && d.CreatedAt < end.AddDays(1)).ToListAsync();
+  var all = await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer).Where(o => o.CreatedAt >= start && o.CreatedAt < end.AddDays(1)).ToListAsync();
+  var orders = all.Where(o => o.Status != OrderStatus.Cancelled).ToList();
+  var discards = await db.Discards.AsNoTracking().Where(d => d.Status == DiscardStatus.Approved && d.CreatedAt >= start && d.CreatedAt < end.AddDays(1)).ToListAsync();
+  // Thống kê đơn hàng: theo trạng thái, theo thanh toán, theo nguồn (khách tự đặt trên web / nhân viên tạo).
+  vm.AllOrders = all.Count; vm.CancelledOrders = all.Count(o => o.Status == OrderStatus.Cancelled);
+  static List<NamedValue> By(IEnumerable<Order> l, IEnumerable<string> keys, Func<Order, string> key) => keys.Select(k => { var g = l.Where(o => key(o) == k).ToList(); return new NamedValue(k, g.Sum(o => o.Total), g.Count); }).ToList();
+  vm.OrdersByStatus = By(all, OrderStatus.All, o => o.Status); vm.OrdersByPayment = By(all, PaymentStatus.All, o => o.PaymentStatus);
+  vm.OrdersBySource = By(all, ["Khách đặt trên web", "Nhân viên tạo"], o => o.CreatedBy is null ? "Khách đặt trên web" : "Nhân viên tạo");
   vm.Revenue = orders.Sum(o => o.Total); vm.OrderCount = orders.Count; vm.AvgOrder = orders.Count == 0 ? 0 : vm.Revenue / orders.Count;
   vm.Wasted = discards.Sum(d => d.Quantity); vm.WastedValue = discards.Sum(d => d.Value);
   vm.TopProducts = TopProducts(orders, 5);

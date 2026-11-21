@@ -12,13 +12,13 @@
  </div>
  <label>Ghi chú<input name="note" maxlength="200" value="@ViewBag.Note"/></label>
  <fieldset><legend>Bánh nhập (bỏ trống số lượng ở các dòng không dùng)</legend>
-  <div class="prow head"><span>Bánh</span><span>Số lượng</span><span>Đơn vị</span><span>Đơn giá nhập (₫)</span></div>
+  <div class="prow head"><span>Bánh</span><span>Số lượng</span><span>Đơn vị</span><span>Đơn giá nhập (theo bảng giá xưởng)</span></div>
   @for (var i = 0; i < 6; i++) {
    var r = i < rows.Count ? rows[i] : null;
    <div class="prow"><select name="rows[@i].ProductId" aria-label="Bánh @(i + 1)"><option value="" data-unit="">— Chọn bánh —</option>@foreach (var p in products) {<option value="@p.Id" data-unit="@p.Unit" selected="@(r?.ProductId == p.Id)">@p.Code · @p.Name</option>}</select>
     <input name="rows[@i].Quantity" type="number" min="0" max="100000" step="1" value="@(r is null || r.Quantity == 0 ? "" : r.Quantity.ToString(inv))" aria-label="Số lượng"/>
     <span class="unit" aria-label="Đơn vị">—</span>
-    <input name="rows[@i].UnitCost" type="number" min="0" step="any" value="@(r is null || r.UnitCost == 0 ? "" : r.UnitCost.ToString(inv))" aria-label="Đơn giá nhập"/></div>
+    <input name="rows[@i].UnitCost" type="number" readonly placeholder="tự lấy khi lưu" aria-label="Đơn giá nhập (tự lấy theo bảng giá xưởng)"/></div>
   }
   <p class="qty-total">Tổng tiền: <b id="pTotal">0 ₫</b></p>
  </fieldset>

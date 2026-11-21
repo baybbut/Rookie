@@ -8,7 +8,7 @@ using Rookie.Data;
 using Rookie.Models;
 namespace Rookie.Controllers;
 [Authorize(AuthenticationSchemes = Auth.Staff), Route("admin")]
-public partial class AdminController(ShopDbContext db) : Controller {
+public partial class AdminController(ShopDbContext db, IWebHostEnvironment env) : Controller {
  // Tên nhân viên đang đăng nhập, ghi lại trên đơn/phiếu mình xử lý.
  string Me => User.Identity?.Name ?? "—";
 
@@ -73,14 +73,14 @@ public partial class AdminController(ShopDbContext db) : Controller {
  }
 
  // ---- Danh mục ----
- [HttpGet("categories")]
+ [Authorize(Roles = StaffRole.Admin), HttpGet("categories")]
  public async Task<IActionResult> Categories() {
   var cats = await db.Categories.AsNoTracking().OrderBy(c => c.Name).ToListAsync();
   var counts = await db.Products.AsNoTracking().GroupBy(p => p.Category).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N);
   return View(cats.Select(c => new CategoryRow(c.Id, c.Name, counts.GetValueOrDefault(c.Name), c.IsHidden)).ToList());
  }
 
- [HttpPost("categories/toggle/{id:int}"), ValidateAntiForgeryToken]
+ [Authorize(Roles = StaffRole.Admin), HttpPost("categories/toggle/{id:int}"), ValidateAntiForgeryToken]
  public async Task<IActionResult> ToggleCategory(int id) {
   var c = await db.Categories.FindAsync(id);
   if (c is null) return NotFound();
@@ -89,7 +89,7 @@ public partial class AdminController(ShopDbContext db) : Controller {
   return RedirectToAction(nameof(Categories));
  }
 
- [HttpPost("categories/create"), ValidateAntiForgeryToken]
+ [Authorize(Roles = StaffRole.Admin), HttpPost("categories/create"), ValidateAntiForgeryToken]
  public async Task<IActionResult> CreateCategory(string? name) {
   name = name?.Trim();
   if (string.IsNullOrEmpty(name) || name.Length > 40) TempData["Msg"] = "Tên danh mục không hợp lệ (1–40 ký tự).";
@@ -98,7 +98,7 @@ public partial class AdminController(ShopDbContext db) : Controller {
   return RedirectToAction(nameof(Categories));
  }
 
- [HttpPost("categories/edit/{id:int}"), ValidateAntiForgeryToken]
+ [Authorize(Roles = StaffRole.Admin), HttpPost("categories/edit/{id:int}"), ValidateAntiForgeryToken]
  public async Task<IActionResult> EditCategory(int id, string? name) {
   var c = await db.Categories.FindAsync(id);
   if (c is null) return NotFound();
@@ -114,7 +114,7 @@ public partial class AdminController(ShopDbContext db) : Controller {
   return RedirectToAction(nameof(Categories));
  }
 
- [HttpPost("categories/delete/{id:int}"), ValidateAntiForgeryToken]
+ [Authorize(Roles = StaffRole.Admin), HttpPost("categories/delete/{id:int}"), ValidateAntiForgeryToken]
  public async Task<IActionResult> DeleteCategory(int id) {
   var c = await db.Categories.FindAsync(id);
   if (c is null) return NotFound();
@@ -128,10 +128,16 @@ public partial class AdminController(ShopDbContext db) : Controller {
  public async Task<IActionResult> Create() { await LoadCategories(); return View("Form", new Product()); }
 
  [HttpPost("create"), ValidateAntiForgeryToken]
- public async Task<IActionResult> Create([Bind("Code,Name,Description,Image,Category,Unit,Price")] Product p, string? status) {
-  await CheckProduct(p, 0); ProductStatus.Apply(p, status);
-  if (!ModelState.IsValid) { await LoadCategories(); return View("Form", p); }
+ public async Task<IActionResult> Create([Bind("Code,Name,Description,Image,Category,Unit,Margin")] Product p, string? status, int? priceId, IFormFile? upload) {
+  // Bánh mới: chọn bánh trong danh sách của xưởng (giá nhập lấy đúng giá xưởng, không nhập tay); giá bán tự tính từ tỉ lệ lợi nhuận.
+  var sp = await db.SupplierPrices.FirstOrDefaultAsync(x => x.Id == priceId && x.ProductId == null);
+  if (sp is null || !await db.Suppliers.AnyAsync(s => s.Id == sp.SupplierId && s.IsActive)) ModelState.AddModelError(nameof(Product.SupplierId), "Hãy chọn một bánh trong danh sách của xưởng đang hợp tác.");
+  else (p.SupplierId, p.CostPrice) = (sp.SupplierId, sp.Price);
+  await SaveUpload(p, upload); await CheckProduct(p, 0); ProductStatus.Apply(p, status);
+  if (!ModelState.IsValid) { ViewBag.PriceId = priceId; await LoadCategories(); return View("Form", p); }
+  using var tx = await db.Database.BeginTransactionAsync();
   db.Products.Add(p); await db.SaveChangesAsync();
+  sp!.ProductId = p.Id; await db.SaveChangesAsync(); await tx.CommitAsync();
   TempData["Msg"] = $"Đã thêm “{p.Name}” (mã {p.Code}).";
   return RedirectToAction(nameof(Products));
  }
@@ -144,12 +150,13 @@ public partial class AdminController(ShopDbContext db) : Controller {
  }
 
  [HttpPost("edit/{id:int}"), ValidateAntiForgeryToken]
- public async Task<IActionResult> Edit(int id, [Bind("Code,Name,Description,Image,Category,Unit,Price")] Product input, string? status) {
+ public async Task<IActionResult> Edit(int id, [Bind("Code,Name,Description,Image,Category,Unit,Margin")] Product input, string? status, IFormFile? upload) {
   var p = await db.Products.FindAsync(id);
   if (p is null) return NotFound();
-  await CheckProduct(input, id); ProductStatus.Apply(input, status);
+  (input.CostPrice, input.SupplierId) = (p.CostPrice, p.SupplierId); // giá nhập đi theo bảng giá xưởng, không sửa ở đây
+  await SaveUpload(input, upload); await CheckProduct(input, id); ProductStatus.Apply(input, status);
   if (!ModelState.IsValid) { input.Id = id; await LoadCategories(); return View("Form", input); }
-  (p.Code, p.Name, p.Description, p.Image, p.Category, p.Unit, p.Price, p.IsNew, p.IsBestSeller) = (input.Code, input.Name, input.Description, input.Image, input.Category, input.Unit, input.Price, input.IsNew, input.IsBestSeller);
+  (p.Code, p.Name, p.Description, p.Image, p.Category, p.Unit, p.Price, p.CostPrice, p.Margin, p.IsNew, p.IsBestSeller) = (input.Code, input.Name, input.Description, input.Image, input.Category, input.Unit, input.Price, input.CostPrice, input.Margin, input.IsNew, input.IsBestSeller);
   await db.SaveChangesAsync();
   TempData["Msg"] = $"Đã cập nhật “{p.Name}”.";
   return RedirectToAction(nameof(Products));
@@ -164,11 +171,39 @@ public partial class AdminController(ShopDbContext db) : Controller {
   return RedirectToAction(nameof(Products));
  }
 
- async Task LoadCategories() => ViewBag.Categories = await db.Categories.AsNoTracking().OrderBy(c => c.Name).Select(c => c.Name).ToListAsync();
+ static readonly string[] ImageExts = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+ // Ảnh tải lên lưu vào wwwroot/uploads với tên ngẫu nhiên (không dùng tên file người dùng gửi) rồi ghi đường dẫn vào p.Image.
+ // shortcut: ảnh cũ khi thay ảnh/xóa bánh vẫn nằm trong thư mục; dọn tay nếu thư mục phình to.
+ // Dùng chung cho trang /admin và API của app WinForms. Trả về (đường dẫn /uploads/..., null) hoặc (null, lỗi).
+ public static async Task<(string? Path, string? Error)> StoreImage(IWebHostEnvironment env, IFormFile file) {
+  var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+  if (!ImageExts.Contains(ext)) return (null, "Chỉ nhận ảnh .jpg, .jpeg, .png, .webp, .gif.");
+  if (file.Length == 0 || file.Length > 5 * 1024 * 1024) return (null, "Ảnh phải có dung lượng từ 1 byte đến 5 MB.");
+  var dir = Path.Combine(env.WebRootPath, "uploads"); Directory.CreateDirectory(dir);
+  var name = Guid.NewGuid().ToString("N") + ext;
+  await using (var fs = System.IO.File.Create(Path.Combine(dir, name))) await file.CopyToAsync(fs);
+  return ("/uploads/" + name, null);
+ }
+
+ async Task SaveUpload(Product p, IFormFile? file) {
+  if (file is null || file.Length == 0) return;
+  var (path, error) = await StoreImage(env, file);
+  if (error is not null) { ModelState.AddModelError(nameof(Product.Image), error); return; }
+  p.Image = path!; ModelState.Remove(nameof(Product.Image));
+ }
+
+ async Task LoadCategories() {
+  ViewBag.Categories = await db.Categories.AsNoTracking().OrderBy(c => c.Name).Select(c => c.Name).ToListAsync();
+  ViewBag.Suppliers = await db.Suppliers.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
+  // Bánh xưởng làm mà tiệm chưa bán (xưởng đang hợp tác): nguồn chọn khi thêm bánh mới.
+  ViewBag.Catalog = await (from x in db.SupplierPrices join s in db.Suppliers on x.SupplierId equals s.Id where x.ProductId == null && s.IsActive orderby s.Name, x.Name select new SupplierPriceRow(x.Id, s.Id, s.Name, true, null, null, x.Name, x.Unit, x.Price, false)).ToListAsync();
+ }
 
  async Task CheckProduct(Product p, int selfId) {
   if (!string.IsNullOrEmpty(p.Category) && !await db.Categories.AnyAsync(c => c.Name == p.Category)) ModelState.AddModelError(nameof(Product.Category), "Hãy chọn một danh mục có sẵn.");
   if (!ProductStatus.Units.Contains(p.Unit)) ModelState.AddModelError(nameof(Product.Unit), "Hãy chọn đơn vị có sẵn.");
+  p.Price = ProductStatus.PriceOf(p.CostPrice, p.Margin); ModelState.Remove(nameof(Product.Price));
+  if (p.Price < 1000) ModelState.AddModelError(nameof(Product.CostPrice), "Giá bán tính ra phải từ 1.000 ₫: hãy nhập giá nhập.");
   p.Code = p.Code?.Trim().ToUpperInvariant();
   if (string.IsNullOrEmpty(p.Code)) { var n = await db.Products.MaxAsync(x => (int?)x.Id) ?? 0; do p.Code = $"SP{++n:000}"; while (await db.Products.AnyAsync(x => x.Code == p.Code && x.Id != selfId)); ModelState.Remove(nameof(Product.Code)); }
   else if (await db.Products.AnyAsync(x => x.Code == p.Code && x.Id != selfId)) ModelState.AddModelError(nameof(Product.Code), $"Mã “{p.Code}” đã được dùng cho bánh khác.");

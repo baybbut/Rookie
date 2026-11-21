@@ -44,4 +44,4 @@ export function toast(message) {
 }
 
 export const vnd = n => Number(n).toLocaleString('vi-VN') + ' ₫';
-export const img = (id, w) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=85`;
+export const img = (id, w) => id.startsWith('/uploads/') ? id : `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=85`;

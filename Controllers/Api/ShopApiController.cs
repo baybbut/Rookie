@@ -13,7 +13,9 @@ public record CheckoutReq([Required, MinLength(1), MaxLength(50)] List<ItemReq> 
 // Cho website khách (React): xem bánh công khai; khách đã đăng nhập thì đặt hàng, xem/hủy đơn của mình, sửa hồ sơ.
 [ApiController, IgnoreAntiforgeryToken, Route("api")]
 public class ShopApiController(ShopDbContext db) : ControllerBase {
- IQueryable<Product> Visible => db.Products.AsNoTracking().Where(p => !db.Categories.Any(c => c.Name == p.Category && c.IsHidden));
+ // Bánh đang bán: không bị ẩn và không thuộc danh mục bị ẩn. Dùng chung cho trang bán bánh, giỏ hàng và đặt hàng.
+ internal static IQueryable<Product> Sellable(ShopDbContext db) => db.Products.AsNoTracking().Where(p => !p.IsHidden && !db.Categories.Any(c => c.Name == p.Category && c.IsHidden));
+ IQueryable<Product> Visible => Sellable(db);
  int CustomerId => int.Parse(User.FindFirstValue("sub")!);
 
  [HttpGet("categories")]

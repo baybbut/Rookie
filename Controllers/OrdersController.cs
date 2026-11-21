@@ -12,6 +12,16 @@ public class OrdersController(ShopDbContext db,CartService cart):Controller {
  int UserId=>int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
  public async Task<IActionResult> Index()=>View(await db.Orders.Include(o=>o.Items).Where(o=>o.CustomerId==UserId).OrderByDescending(o=>o.Id).ToListAsync());
  public async Task<IActionResult> Details(int id){var order=await db.Orders.Include(o=>o.Items).SingleOrDefaultAsync(o=>o.Id==id&&o.CustomerId==UserId);return order==null?NotFound():View(order);}
+ // Khách sửa người nhận / địa chỉ / lời nhắn cho tới trước khi đơn "Đang giao".
+ [HttpPost] public async Task<IActionResult> EditInfo(int id,OrderInfoInput input){
+ var order=await db.Orders.SingleOrDefaultAsync(o=>o.Id==id&&o.CustomerId==UserId);if(order==null)return NotFound();
+ if(!OrderStatus.CustomerCanEdit(order.Status))TempData["Msg"]=$"Đơn đang ở trạng thái “{order.Status}”, hãy liên hệ tiệm để đổi thông tin.";
+ else if(!ModelState.IsValid)TempData["Msg"]=string.Join(" · ",ModelState.Values.SelectMany(v=>v.Errors).Select(e=>e.ErrorMessage));
+ else{input.ApplyTo(order);await db.SaveChangesAsync();TempData["Msg"]="Đã cập nhật thông tin giao bánh.";}
+ return RedirectToAction("Details",new{id});
+ }
+ // Khách chỉ tự hủy được khi tiệm chưa xác nhận đơn (giống api/shop/orders/mine/{id}/cancel).
+ [HttpPost] public async Task<IActionResult> Cancel(int id){var order=await db.Orders.SingleOrDefaultAsync(o=>o.Id==id&&o.CustomerId==UserId);if(order==null)return NotFound();if(order.Status==OrderStatus.New){order.Status=OrderStatus.Cancelled;await db.SaveChangesAsync();TempData["Msg"]="Đã hủy đơn.";}else TempData["Msg"]=$"Đơn đang ở trạng thái “{order.Status}”, hãy liên hệ tiệm để hủy.";return RedirectToAction("Details",new{id});}
  public async Task<IActionResult> Success(int id){var order=await db.Orders.Include(o=>o.Items).SingleOrDefaultAsync(o=>o.Id==id&&o.CustomerId==UserId);return order==null?NotFound():View(order);}
  [HttpGet] public async Task<IActionResult> Checkout(){var lines=await cart.Lines();if(lines.Count==0)return RedirectToAction("Cart","Shop");var c=await db.Customers.FindAsync(UserId);if(c==null)return Challenge();var key=HttpContext.Session.GetString("checkout-key")??Guid.NewGuid().ToString("N");HttpContext.Session.SetString("checkout-key",key);ViewBag.Lines=lines;return View(new CheckoutInput{Name=c.FullName,Phone=c.Phone,Address=c.Address??"",RequestKey=key});}
  [HttpPost] public async Task<IActionResult> Checkout(CheckoutInput input){

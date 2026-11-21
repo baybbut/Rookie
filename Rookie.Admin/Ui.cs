@@ -22,7 +22,49 @@ static class Ui {
  public static string? Try(Action save) { try { save(); return null; } catch (ApiException e) { return e.Message; } }
 
  public static Color OrderColor(string s) => s switch { OrderStatus.New => Color.FromArgb(247, 227, 181), OrderStatus.Confirmed => Color.FromArgb(227, 220, 241), OrderStatus.Preparing => Mint, OrderStatus.Shipping => Color.FromArgb(212, 227, 238), OrderStatus.Done => Color.FromArgb(200, 232, 205), _ => Color.FromArgb(246, 220, 217) };
+ public static Color PaymentColor(string s) => s switch { PaymentStatus.Unpaid => Color.FromArgb(247, 227, 181), PaymentStatus.Pending => Color.FromArgb(227, 220, 241), PaymentStatus.Paid => Color.FromArgb(200, 232, 205), _ => Color.FromArgb(246, 220, 217) };
+ public static Color DiscardColor(string s) => s switch { DiscardStatus.Pending => Color.FromArgb(247, 227, 181), DiscardStatus.Approved => Color.FromArgb(200, 232, 205), _ => Color.FromArgb(246, 220, 217) };
  public static Color PurchaseColor(string s) => s switch { PurchaseStatus.Pending => Color.FromArgb(247, 227, 181), PurchaseStatus.Received => Color.FromArgb(200, 232, 205), _ => Color.FromArgb(246, 220, 217) };
+}
+
+// Hộp thoại CHỈ XEM (không sửa được): ảnh (tùy chọn) + các dòng "nhãn — giá trị" + bảng (tùy chọn) + nút In (tùy chọn).
+static class Viewer {
+ public static void Show(IWin32Window? owner, string title, IEnumerable<(string Label, string? Value)> rows, string? image = null, Grid? grid = null, Func<System.Drawing.Printing.PrintDocument>? print = null) {
+  using var f = new Form { Text = title, Font = Ui.Base, BackColor = Ui.Cream, StartPosition = FormStartPosition.CenterParent, Size = new Size(760, grid is null ? 480 : 640), MinimizeBox = false, Padding = new Padding(20, 16, 20, 12) };
+  var t = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, Margin = new Padding(0) }; t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150)); t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, image is null ? 540 : 300));
+  foreach (var (l, v) in rows) { var a = Ui.Lbl(l, Ui.Bold, Ui.Muted); a.Margin = new Padding(0, 3, 8, 3); var b = Ui.Lbl(string.IsNullOrWhiteSpace(v) ? "—" : v); b.MaximumSize = new Size(image is null ? 540 : 300, 0); b.Margin = new Padding(0, 3, 0, 3); t.Controls.Add(a); t.Controls.Add(b); }
+  var head = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false, Margin = new Padding(0, 0, 0, 10) };
+  if (image is not null) { var pic = new PictureBox { Width = 260, Height = 195, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Ui.Card, Margin = new Padding(0, 0, 18, 0) }; pic.LoadAsync(image); head.Controls.Add(pic); }
+  head.Controls.Add(t);
+  var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 8, 0, 0) };
+  bar.Controls.Add(Ui.Btn("Đóng", f.Close)); if (print is not null) bar.Controls.Add(Ui.Btn("In phiếu", () => PrintDoc.Preview(f, print()), primary: true));
+  if (grid is not null) f.Controls.Add(grid); f.Controls.Add(bar); f.Controls.Add(head); f.ShowDialog(owner);
+ }
+ // Ảnh bánh: mã Unsplash → URL Unsplash; ảnh tải lên (/uploads/...) → lấy từ server web.
+ public static string ImageUrl(Product p) { var u = Product.Url(p.Image, 600); return u.StartsWith('/') ? Api.Base + u : u; }
+}
+
+// Dàn trang in: mỗi dòng ba cột (trái · giữa căn phải · phải căn phải), tự sang trang khi hết chỗ. Style: 0 thường · 1 đậm · 2 tiêu đề lớn · 3 đầu mục.
+record PLine(string A, string B = "", string C = "", int Style = 0);
+static class PrintDoc {
+ public static System.Drawing.Printing.PrintDocument Build(string name, List<PLine> L) {
+  var doc = new System.Drawing.Printing.PrintDocument { DocumentName = name }; var i = 0; doc.DefaultPageSettings.Margins = new System.Drawing.Printing.Margins(60, 60, 60, 60);
+  var fonts = new[] { new Font("Segoe UI", 10f), new Font("Segoe UI", 10f, FontStyle.Bold), new Font("Georgia", 18f, FontStyle.Bold), new Font("Segoe UI", 12f, FontStyle.Bold) };
+  doc.PrintPage += (_, e) => {
+   var g = e.Graphics!; var m = e.MarginBounds; float y = m.Top; var right = new StringFormat { Alignment = StringAlignment.Far };
+   while (i < L.Count) {
+    var ln = L[i]; var f = fonts[ln.Style]; var hgt = f.GetHeight(g) + (ln.Style == 3 ? 8 : 4); if (y + hgt > m.Bottom) { e.HasMorePages = true; return; }
+    g.DrawString(ln.A, f, Brushes.Black, m.Left, y + (ln.Style == 3 ? 6 : 0));
+    if (ln.B != "") g.DrawString(ln.B, f, Brushes.Black, m.Left + m.Width * 0.62f, y, right); if (ln.C != "") g.DrawString(ln.C, f, Brushes.Black, m.Right, y, right);
+    if (ln.Style == 3) g.DrawLine(Pens.Gray, m.Left, y + hgt - 1, m.Right, y + hgt - 1);
+    y += hgt; i++;
+   }
+   e.HasMorePages = false; i = 0;
+  };
+  return doc;
+ }
+ // Xem trước rồi bấm nút máy in trên thanh công cụ để in (hoặc chọn "Microsoft Print to PDF").
+ public static void Preview(IWin32Window owner, System.Drawing.Printing.PrintDocument doc) { using var pv = new PrintPreviewDialog { Document = doc, WindowState = FormWindowState.Maximized }; pv.ShowDialog(owner); }
 }
 
 // Bảng dữ liệu chỉ-đọc: mỗi dòng giữ đối tượng gốc trong Tag; tiêu đề bắt đầu bằng '>' thì căn phải.

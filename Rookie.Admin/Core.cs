@@ -24,6 +24,12 @@ static class Api {
  public static void Post(string path, object? body = null) => Send(HttpMethod.Post, path, body ?? new { }).Dispose();
  public static void Delete(string path) => Send(HttpMethod.Delete, path, null).Dispose();
  public static string Q(string s) => Uri.EscapeDataString(s);
+ // Gửi file ảnh lên server, nhận lại đường dẫn /uploads/... để gán vào Product.Image.
+ public static string Upload(string file) {
+  var form = new MultipartFormDataContent { { new StreamContent(File.OpenRead(file)), "file", Path.GetFileName(file) } };
+  return Read<UploadRes>(Send(HttpMethod.Post, "api/admin/uploads", form)).Path;
+ }
+ record UploadRes(string Path);
 
  static T Read<T>(HttpResponseMessage res) { using (res) return JsonSerializer.Deserialize<T>(res.Content.ReadAsStream(), json)!; }
 
@@ -31,7 +37,7 @@ static class Api {
  static HttpResponseMessage Send(HttpMethod method, string path, object? body) {
   using var req = new HttpRequestMessage(method, path.TrimStart('/'));
   if (Token is not null) req.Headers.Authorization = new("Bearer", Token);
-  if (body is not null) req.Content = JsonContent.Create(body, options: json);
+  if (body is HttpContent c) req.Content = c; else if (body is not null) req.Content = JsonContent.Create(body, options: json);
   HttpResponseMessage res;
   try { res = http.Send(req); }
   catch (HttpRequestException) { throw new ApiException(null, $"Không kết nối được máy chủ {Base}.\nHãy chạy web (lệnh `dotnet run` ở thư mục dự án) rồi thử lại."); }
@@ -84,6 +90,7 @@ static class Svc {
    new XSheet($"Doanh thu theo {r.PeriodUnit}", [per, "Số đơn", "Doanh thu (₫)"], r.Series.Select(d => new object?[] { d.Label ?? Fmt.Day(d.Day), d.Orders, d.Revenue }).ToList()),
    new XSheet("Bánh bán chạy", ["Bánh", "Số lượng", "Doanh thu (₫)"], r.TopProducts.Select(t => new object?[] { t.Name, t.Count, t.Value }).ToList()),
    new XSheet("Khách hàng", ["Khách hàng", "Số đơn", "Chi tiêu (₫)"], r.TopCustomers.Select(t => new object?[] { t.Name, t.Count, t.Value }).ToList()),
+   new XSheet("Thống kê đơn hàng", ["Nhóm", "Chỉ tiêu", "Số đơn", "Tổng tiền (₫)"], [new object?[] { "Tổng", "Tổng số đơn", r.AllOrders, r.OrdersByStatus.Sum(x => x.Value) }, .. new[] { ("Trạng thái đơn", r.OrdersByStatus), ("Thanh toán", r.OrdersByPayment), ("Nguồn đặt", r.OrdersBySource) }.SelectMany(g => g.Item2.Select(x => new object?[] { g.Item1, x.Name, x.Count, x.Value }))]),
    new XSheet($"Bánh hủy theo {r.PeriodUnit}", [per, "Số bánh hủy", "Giá trị (₫)"], r.Discards.Select(d => new object?[] { d.Label, d.Quantity, d.Value }).ToList()));
  }
 }

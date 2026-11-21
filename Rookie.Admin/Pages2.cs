@@ -7,7 +7,17 @@ class CustomersPage : Page {
  public CustomersPage(MainForm owner) : base("Customers", "Quản lý khách hàng") {
   this.owner = owner; name = Add("Họ tên", new TextBox(), 200); contact = Add("Email / số điện thoại", new TextBox(), 200); status = Add("Trạng thái", Combo("Tất cả", ["Hoạt động", "Đã khóa"])); ClearButton();
   G.Setup("Khách hàng|1.5", "Liên hệ|2.4", ">Đơn|0.5", ">Đã chi|1", "Trạng thái|0.9");
-  Act("Thêm khách hàng", () => Edit(null), primary: true); Act("Sửa", () => { if (G.Pick<Customer>() is { } c) Edit(c); }); Act("Khóa / mở khóa", Lock); Act("Xem đơn hàng", Orders, reload: false);
+  Act("Thêm khách hàng", () => Edit(null), primary: true); Act("Xem", View, reload: false); Act("Sửa", () => { if (G.Pick<Customer>() is { } c) Edit(c); }); Act("Khóa / mở khóa", Lock); Act("Xem đơn hàng", Orders, reload: false);
+  G.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) View(); };
+ }
+ // Xem thông tin khách (chỉ xem) kèm lịch sử đơn hàng.
+ void View() {
+  if (G.Pick<Customer>() is not { } c) return;
+  var os = Api.Get<List<Order>>($"api/admin/orders?customerId={c.Id}"); var live = os.Where(o => o.Status != OrderStatus.Cancelled).ToList();
+  var g = new Grid().Setup("Mã|0.5", "Thời gian|1.2", "Sản phẩm|2.4", ">Tổng|1", "Trạng thái|1", "Thanh toán|1.1");
+  g.Load(os, o => [$"#{o.Id}", Fmt.Date(o.CreatedAt), string.Join(", ", o.Items.Select(i => $"{i.ProductName} ×{i.Quantity}")), Fmt.Vnd(o.Total), o.Status, o.PaymentStatus], (r, o) => Grid.Tint(r, 4, Ui.OrderColor(o.Status)));
+  Viewer.Show(this, $"Khách hàng — {c.FullName}", [("Họ và tên", c.FullName), ("Tên tài khoản", c.UserName), ("Email", c.Email), ("Số điện thoại", c.Phone), ("Địa chỉ", c.Address), ("Ngày tham gia", Fmt.Day(c.CreatedAt)),
+   ("Trạng thái", c.IsLocked ? "Đã khóa" : "Hoạt động"), ("Đơn hàng", $"{os.Count} đơn ({os.Count - live.Count} đã hủy)"), ("Đã chi", Fmt.Vnd(live.Sum(o => o.Total))), ("Lần đặt gần nhất", os.Count == 0 ? null : Fmt.Date(os.Max(o => o.CreatedAt)))], grid: g);
  }
  public override void Reload() {
   var st = status.SelectedIndex;
@@ -40,20 +50,31 @@ class CustomersPage : Page {
 
 class OrdersPage : Page {
  readonly TextBox q; readonly DateTimePicker from, to; readonly ComboBox status; readonly Panel chip = new() { AutoSize = true, Visible = false, Margin = new Padding(0, 0, 0, 6) }; readonly Label chipText = Ui.Lbl("");
- readonly Button bConfirm, bNext, bCancel; int? customer;
+ readonly Button bConfirm, bNext, bCancel, bEdit; int? customer;
  // Đơn khách đặt trên web: cứ 15 giây hỏi server, có đơn mới (mã lớn hơn) thì tải lại danh sách.
  readonly System.Windows.Forms.Timer poll = new() { Interval = 15000 }; int lastId;
  public OrdersPage() : base("Orders", "Quản lý đơn hàng") {
   q = Add("Tìm đơn hàng", new TextBox(), 230); from = Add("Từ ngày", new DateTimePicker(), 130); to = Add("Đến ngày", new DateTimePicker(), 130); status = Add("Trạng thái", Combo("Tất cả", OrderStatus.All)); ClearButton(() => customer = null);
   var cp = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 19, 0, 0) }; cp.Controls.Add(chipText); cp.Controls.Add(Ui.Btn("Bỏ lọc khách", () => { customer = null; Reload(); })); chip.Controls.Add(cp); Filters.Controls.Add(chip);
-  G.Setup("Mã|0.45", "Khách hàng|1.7", "Thời gian|1.25", "Sản phẩm|2.4", ">Tổng|1", "Trạng thái|1", "Xác nhận bởi|1.3");
-  bConfirm = Act("Xác nhận đơn", () => Advance(OrderStatus.Confirmed), primary: true); bNext = Act("Chuyển bước tiếp", () => { if (G.Pick<Order>() is { } o && OrderStatus.Next(o.Status) is { } n) Advance(n); });
-  bCancel = Act("Hủy đơn", () => Advance(OrderStatus.Cancelled), danger: true); Act("Chi tiết", Detail, reload: false); G.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Detail(); }; G.SelectionChanged += (_, _) => Buttons();
+  G.Setup("Mã|0.45", "Khách hàng|1.7", "Thời gian|1.25", "Sản phẩm|2.2", ">Tổng|1", "Trạng thái|1", "Thanh toán|1.1", "Xác nhận bởi|1.2");
+  bConfirm = Act("Xác nhận đơn", () => Advance(OrderStatus.Confirmed), primary: true); bNext = Act("Bước tiếp", () => { if (G.Pick<Order>() is { } o && OrderStatus.Next(o.Status) is { } n) Advance(n); });
+  bEdit = Act("Sửa", EditInfo); bCancel = Act("Hủy đơn", () => Advance(OrderStatus.Cancelled), danger: true); Act("Chi tiết", Detail, reload: false); G.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Detail(); }; G.SelectionChanged += (_, _) => Buttons();
   // Lỗi mạng khi tự kiểm tra thì bỏ qua (lần sau thử lại), không bật hộp thoại mỗi 15 giây.
   poll.Tick += (_, _) => { if (!Visible || Api.Token is null) return; try { if (Api.Get<List<Order>>($"api/admin/orders?status={Api.Q(OrderStatus.New)}").Select(o => o.Id).DefaultIfEmpty().Max() > lastId) Reload(); } catch (ApiException) { } }; poll.Start();
  }
  public void FilterCustomer(int id) { customer = id; Reload(); }
- void Buttons() { var s = G.Pick<Order>()?.Status; bConfirm.Enabled = s == OrderStatus.New; bNext.Enabled = s is not null && s != OrderStatus.New && OrderStatus.Next(s) is not null; bCancel.Enabled = s is not null && OrderStatus.CanCancel(s); }
+ void Buttons() { var s = G.Pick<Order>()?.Status; bConfirm.Enabled = s == OrderStatus.New; bNext.Enabled = s is not null && s != OrderStatus.New && OrderStatus.Next(s) is not null; bCancel.Enabled = bEdit.Enabled = s is not null && OrderStatus.CanCancel(s); }
+ // Sửa người nhận / địa chỉ / ghi chú (đơn chưa hoàn thành, chưa hủy). Đơn nhân viên tạo chưa có người nhận thì điền sẵn theo khách hàng.
+ void EditInfo() {
+  if (G.Pick<Order>() is not { } o) return; var c = o.Customer;
+  using var f = new FieldForm($"Sửa thông tin đơn #{o.Id}", "Lưu thay đổi", 340);
+  var tName = f.Add("Người nhận", FieldForm.Txt(o.ShipName ?? c?.FullName, 100)); var tPhone = f.Add("Số điện thoại", FieldForm.Txt(o.ShipPhone ?? c?.Phone, 30)); var tAddr = f.Add("Địa chỉ giao", FieldForm.Txt(o.ShipAddress ?? c?.Address, 500)); var tNote = f.Add("Ghi chú", FieldForm.Txt(o.Note, 1000));
+  f.Check = () => {
+   if (tName.Text.Trim() == "") return "Hãy nhập người nhận."; if (!Regex.IsMatch(tPhone.Text.Trim(), @"^[0-9+()\-\s.]{8,20}$")) return "Số điện thoại không hợp lệ."; if (tAddr.Text.Trim() == "") return "Hãy nhập địa chỉ giao.";
+   return Ui.Try(() => Api.Put<Order>($"api/admin/orders/{o.Id}/info", new { name = tName.Text.Trim(), phone = tPhone.Text.Trim(), address = tAddr.Text.Trim(), note = tNote.Text.Trim() }));
+  };
+  if (f.ShowDialog() == DialogResult.OK) Note($"Đã cập nhật thông tin đơn #{o.Id}.");
+ }
  public override void Reload() {
   // Đơn mới nhất (mã lớn nhất) lên đầu.
   IEnumerable<Order> r = Api.Get<List<Order>>("api/admin/orders").OrderByDescending(o => o.Id).ToList();
@@ -62,7 +83,7 @@ class OrdersPage : Page {
   if (customer is int cid) { r = r.Where(o => o.CustomerId == cid); chipText.Text = $"Đang lọc theo khách hàng:  {Api.Get<Customer>($"api/admin/customers/{cid}").FullName}   "; chip.Visible = true; } else chip.Visible = false;
   if (Pick(from) is { } a) r = r.Where(o => o.CreatedAt >= a); if (Pick(to) is { } b) r = r.Where(o => o.CreatedAt < b.AddDays(1)); if (Sel(status) is { } s) r = r.Where(o => o.Status == s);
   var list = r.ToList();
-  G.Load(list, o => [$"#{o.Id}", $"{o.Customer?.FullName}  ({o.Customer?.Phone})", Fmt.Date(o.CreatedAt), $"{o.Items.Sum(i => i.Quantity)} món: {string.Join(", ", o.Items.Select(i => i.ProductName))}", Fmt.Vnd(o.Total), o.Status, o.ConfirmedBy ?? "—"], (row, o) => Grid.Tint(row, 5, Ui.OrderColor(o.Status)));
+  G.Load(list, o => [$"#{o.Id}", $"{o.Customer?.FullName}  ({o.Customer?.Phone})", Fmt.Date(o.CreatedAt), $"{o.Items.Sum(i => i.Quantity)} món: {string.Join(", ", o.Items.Select(i => i.ProductName))}", Fmt.Vnd(o.Total), o.Status, o.PaymentStatus, o.ConfirmedBy ?? "—"], (row, o) => { Grid.Tint(row, 5, Ui.OrderColor(o.Status)); Grid.Tint(row, 6, Ui.PaymentColor(o.PaymentStatus)); });
   Note($"{list.Count} đơn · tổng {Fmt.Vnd(list.Where(o => o.Status != OrderStatus.Cancelled).Sum(o => o.Total))} (không tính đơn hủy)"); Buttons();
  }
  // Server kiểm tra đúng quy trình (Mới → Đã xác nhận → … ; hủy được tới trước khi hoàn thành) và ghi tên người xác nhận theo token.
@@ -76,7 +97,7 @@ class OrdersPage : Page {
   if (G.Pick<Order>() is not { } o) return;
   using var f = new Form { Text = $"Đơn #{o.Id}", Font = Ui.Base, BackColor = Ui.Cream, StartPosition = FormStartPosition.CenterParent, Size = new Size(620, 520), MinimizeBox = false, Padding = new Padding(20) };
   var g = new Grid().Setup("Sản phẩm", ">Đơn giá", ">SL", ">Thành tiền"); g.Load(o.Items, i => [i.ProductName, Fmt.Vnd(i.UnitPrice), i.Quantity, Fmt.Vnd(i.Subtotal)]);
-  var c = o.Customer; var info = Ui.Lbl($"{c?.FullName}\n{c?.Email} · {c?.Phone}\n{c?.Address}{(o.ShipAddress is null ? "" : $"\nGiao tới: {o.ShipName} · {o.ShipPhone} · {o.ShipAddress}")}\n\nĐặt lúc {Fmt.Date(o.CreatedAt)}{(o.CreatedBy is null ? "" : " · tạo bởi " + o.CreatedBy)}\nTrạng thái: {o.Status}{(o.ConfirmedBy is null ? "  (chưa nhân viên nào xác nhận)" : $"  ·  xác nhận bởi {o.ConfirmedBy}{(o.ConfirmedAt is { } t ? " lúc " + Fmt.Date(t) : "")}")}{(string.IsNullOrEmpty(o.Note) ? "" : "\nGhi chú: " + o.Note)}"); info.Dock = DockStyle.Top; info.AutoSize = true;
+  var c = o.Customer; var info = Ui.Lbl($"{c?.FullName}\n{c?.Email} · {c?.Phone}\n{c?.Address}{(o.ShipAddress is null ? "" : $"\nGiao tới: {o.ShipName} · {o.ShipPhone} · {o.ShipAddress}")}\n\nĐặt lúc {Fmt.Date(o.CreatedAt)}{(o.CreatedBy is null ? "" : " · tạo bởi " + o.CreatedBy)}\nThanh toán: {o.PaymentStatus}{(o.PaymentMethod is null ? "" : " · " + o.PaymentMethod)}\nTrạng thái: {o.Status}{(o.ConfirmedBy is null ? "  (chưa nhân viên nào xác nhận)" : $"  ·  xác nhận bởi {o.ConfirmedBy}{(o.ConfirmedAt is { } t ? " lúc " + Fmt.Date(t) : "")}")}{(string.IsNullOrEmpty(o.Note) ? "" : "\nGhi chú: " + o.Note)}"); info.Dock = DockStyle.Top; info.AutoSize = true;
   var total = Ui.Lbl($"Tổng cộng: {Fmt.Vnd(o.Total)}", Ui.Big); total.Dock = DockStyle.Bottom; total.TextAlign = ContentAlignment.MiddleRight; total.AutoSize = false; total.Height = 40;
   f.Controls.Add(g); f.Controls.Add(total); f.Controls.Add(info); f.ShowDialog(this);
  }
@@ -110,9 +131,9 @@ class StaffPage : Page {
   f.Check = () => {
    var u = tUser.Text.Trim().ToLowerInvariant();
    if (tName.Text.Trim() == "") return "Hãy nhập họ tên."; if (isNew && !Regex.IsMatch(u, "^[a-z0-9._]{3,30}$")) return "Tên đăng nhập 3–30 ký tự: chữ thường, số, dấu . hoặc _";
-   if (tPhone.Text.Trim() != "" && !Regex.IsMatch(tPhone.Text.Trim(), @"^[0-9+()\-\s.]{8,20}$")) return "Số điện thoại không hợp lệ.";
+   if (!Regex.IsMatch(tPhone.Text.Trim(), @"^[0-9+()\-\s.]{8,20}$")) return tPhone.Text.Trim() == "" ? "Hãy nhập số điện thoại." : "Số điện thoại không hợp lệ.";
    if (isNew && tPass.Text == "") return "Hãy nhập mật khẩu."; if (tPass.Text != "" && tPass.Text.Length < 6) return "Mật khẩu dài 6–64 ký tự.";
-   var body = new { fullName = tName.Text.Trim(), username = isNew ? u : null, phone = string.IsNullOrWhiteSpace(tPhone.Text) ? null : tPhone.Text.Trim(), role = (string)cRole.SelectedItem!, password = tPass.Text == "" ? null : tPass.Text };
+   var body = new { fullName = tName.Text.Trim(), username = isNew ? u : null, phone = tPhone.Text.Trim(), role = (string)cRole.SelectedItem!, password = tPass.Text == "" ? null : tPass.Text };
    return Ui.Try(() => { if (isNew) Api.Post("api/admin/staff", body); else Api.Put<Staff>($"api/admin/staff/{s.Id}", body); });
   };
   if (f.ShowDialog() != DialogResult.OK) return;

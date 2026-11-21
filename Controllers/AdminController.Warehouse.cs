@@ -7,12 +7,32 @@ namespace Rookie.Controllers;
 public partial class AdminController {
  static bool InDate(DateTime d, int? day, int? month, int? year) => (day is null || d.Day == day) && (month is null || d.Month == month) && (year is null || d.Year == year);
 
- internal static async Task<List<StockRow>> StockRows(Rookie.Data.ShopDbContext db) {
+ // until: chỉ tính phát sinh trước mốc này (tồn cuối một ngày); null = tới hiện tại. Bánh hủy chỉ tính phiếu đã duyệt.
+ internal static async Task<List<StockRow>> StockRows(Rookie.Data.ShopDbContext db, DateTime? until = null) {
+  var end = until ?? DateTime.MaxValue;
   var products = await db.Products.AsNoTracking().OrderBy(p => p.Id).ToListAsync();
-  var inn = (await db.Purchases.AsNoTracking().Include(p => p.Items).Where(p => p.Status == PurchaseStatus.Received).ToListAsync()).SelectMany(p => p.Items).GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
-  var sold = (await db.Orders.AsNoTracking().Include(o => o.Items).Where(o => o.Status != OrderStatus.Cancelled).ToListAsync()).SelectMany(o => o.Items).GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
-  var waste = (await db.Discards.AsNoTracking().ToListAsync()).GroupBy(d => d.ProductId).ToDictionary(g => g.Key, g => g.Sum(d => d.Quantity));
+  var inn = (await db.Purchases.AsNoTracking().Include(p => p.Items).Where(p => p.Status == PurchaseStatus.Received && p.ReceivedAt < end).ToListAsync()).SelectMany(p => p.Items).GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+  var sold = (await db.Orders.AsNoTracking().Include(o => o.Items).Where(o => o.Status != OrderStatus.Cancelled && o.CreatedAt < end).ToListAsync()).SelectMany(o => o.Items).GroupBy(i => i.ProductId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+  var waste = (await db.Discards.AsNoTracking().Where(d => d.Status == DiscardStatus.Approved && d.CreatedAt < end).ToListAsync()).GroupBy(d => d.ProductId).ToDictionary(g => g.Key, g => g.Sum(d => d.Quantity));
   return products.Select(p => new StockRow(p, inn.GetValueOrDefault(p.Id), sold.GetValueOrDefault(p.Id), waste.GetValueOrDefault(p.Id))).ToList();
+ }
+
+ // Đơn giá nhập lấy từ bảng giá cố định của xưởng (bỏ qua đơn giá client gửi). Lỗi nếu xưởng ngừng hợp tác hoặc chưa có giá cho bánh nào đó.
+ internal static async Task<string?> PriceFromSupplier(Rookie.Data.ShopDbContext db, Purchase p) {
+  var sup = await db.Suppliers.AsNoTracking().FirstOrDefaultAsync(s => s.Name == p.Supplier && s.IsActive);
+  if (sup is null) return "Hãy chọn nhà cung cấp đang hợp tác.";
+  var prices = await db.SupplierPrices.AsNoTracking().Where(x => x.SupplierId == sup.Id && x.ProductId != null).ToDictionaryAsync(x => x.ProductId!.Value, x => x.Price);
+  foreach (var i in p.Items) { if (!prices.TryGetValue(i.ProductId, out var c)) return $"“{sup.Name}” chưa có giá cho bánh “{i.ItemName}” (thêm trong bảng giá của nhà cung cấp)."; i.UnitCost = c; }
+  return null;
+ }
+
+ // Kiểm kê cuối ngày: phát sinh trong ngày `day` theo từng bánh và tồn cuối ngày đó.
+ internal static async Task<List<DailyRow>> DailyRows(Rookie.Data.ShopDbContext db, DateTime day) {
+  var (start, end) = (day.Date, day.Date.AddDays(1));
+  var before = (await StockRows(db, start)).ToDictionary(s => s.Product.Id); var after = await StockRows(db, end);
+  var discards = await db.Discards.AsNoTracking().Where(d => d.CreatedAt >= start && d.CreatedAt < end).ToListAsync();
+  return after.Select(a => { var b = before[a.Product.Id]; var mine = discards.Where(d => d.ProductId == a.Product.Id).ToList(); var ok = mine.Where(d => d.Status == DiscardStatus.Approved).ToList();
+   return new DailyRow(a.Product, a.In - b.In, a.Sold - b.Sold, ok.Sum(d => d.Quantity), ok.Sum(d => d.Value), mine.Where(d => d.Status == DiscardStatus.Pending).Sum(d => d.Quantity), a.Left); }).ToList();
  }
 
  // ---- Phiếu nhập ----
@@ -39,7 +59,7 @@ public partial class AdminController {
   var products = await db.Products.AsNoTracking().ToDictionaryAsync(p => p.Id);
   var p = new Purchase { Supplier = supplier?.Trim() ?? "", CreatedAt = (date ?? DateTime.Today).Date, CreatedBy = Me, Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim() };
   foreach (var r in rows ?? []) if (products.TryGetValue(r.ProductId, out var pr) && r.Quantity > 0 && r.UnitCost >= 0) p.Items.Add(new PurchaseItem { ProductId = pr.Id, ItemName = pr.Name, Unit = pr.Unit, Quantity = Math.Min(r.Quantity, 100000), UnitCost = r.UnitCost });
-  string? err = !await db.Suppliers.AnyAsync(s => s.Name == p.Supplier) ? "Hãy chọn xưởng bánh cung cấp." : date is null ? "Hãy chọn ngày lập phiếu." : p.CreatedAt > DateTime.Today ? "Ngày lập phiếu không được ở tương lai." : p.Items.Count == 0 ? "Hãy chọn ít nhất một loại bánh với số lượng > 0." : null;
+  string? err = !await db.Suppliers.AnyAsync(s => s.Name == p.Supplier && s.IsActive) ? "Hãy chọn xưởng bánh cung cấp." : date is null ? "Hãy chọn ngày lập phiếu." : p.CreatedAt > DateTime.Today ? "Ngày lập phiếu không được ở tương lai." : p.Items.Count == 0 ? "Hãy chọn ít nhất một loại bánh với số lượng > 0." : await PriceFromSupplier(db, p);
   if (err is not null) { ViewBag.Error = err; ViewBag.Supplier = supplier; ViewBag.Date = date?.ToString("yyyy-MM-dd"); ViewBag.Note = note; ViewBag.Rows = rows; await LoadPurchaseForm(); return View("PurchaseForm"); }
   db.Purchases.Add(p); await db.SaveChangesAsync();
   TempData["Msg"] = $"Đã lưu phiếu nhập #{p.Id}. Hãy kiểm hàng và xác nhận để cộng vào tồn kho.";
@@ -47,7 +67,7 @@ public partial class AdminController {
  }
 
  async Task LoadPurchaseForm() {
-  ViewBag.Suppliers = await db.Suppliers.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
+  ViewBag.Suppliers = await db.Suppliers.AsNoTracking().Where(s => s.IsActive).OrderBy(s => s.Name).ToListAsync();
   ViewBag.Products = await db.Products.AsNoTracking().OrderBy(p => p.Id).ToListAsync();
  }
 
@@ -82,7 +102,7 @@ public partial class AdminController {
  // ---- Bánh hủy ----
  [HttpGet("discards")]
  public async Task<IActionResult> Discards(string? q, int? day, int? month, int? year) {
-  var all = await db.Discards.AsNoTracking().OrderByDescending(d => d.CreatedAt).ThenByDescending(d => d.Id).ToListAsync();
+  var all = await db.Discards.AsNoTracking().Where(d => d.Status == DiscardStatus.Approved).OrderByDescending(d => d.CreatedAt).ThenByDescending(d => d.Id).ToListAsync();
   ViewBag.Q = q; ViewBag.Date = new DateFilter(day, month, year); ViewBag.Stock = await StockRows(db);
   return View(all.Where(d => InDate(d.CreatedAt, day, month, year) && (Has(d.ProductName, q) || Has(d.Reason, q))).ToList());
  }
@@ -93,10 +113,10 @@ public partial class AdminController {
   var day = (date ?? DateTime.Today).Date;
   string? err = stock is null ? "Hãy chọn loại bánh." : quantity < 1 ? "Số lượng hủy phải từ 1 trở lên." : quantity > stock.Left ? $"Chỉ còn {stock.Left} {stock.Product.Unit} “{stock.Product.Name}” trong kho." : !DiscardReasons.All.Contains(reason ?? "") ? "Hãy chọn lý do hủy." : day > DateTime.Today ? "Ngày hủy không được ở tương lai." : null;
   if (err is not null) { TempData["Err"] = err; return RedirectToAction(nameof(Discards)); }
-  var n = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
-  db.Discards.Add(new Discard { ProductId = stock!.Product.Id, ProductName = stock.Product.Name, Unit = stock.Product.Unit, Quantity = quantity, UnitPrice = stock.Product.Price, Reason = n is null ? reason! : $"{reason}: {n}", CreatedAt = day == DateTime.Today ? DateTime.Now : day.AddHours(12), CreatedBy = Me });
-  await db.SaveChangesAsync();
-  TempData["Msg"] = $"Đã ghi nhận hủy {quantity} {stock.Product.Unit} “{stock.Product.Name}”.";
+  var n = string.IsNullOrWhiteSpace(note) ? null : note.Trim(); var admin = User.IsInRole(StaffRole.Admin);
+  var line = new Discard { ProductId = stock!.Product.Id, ProductName = stock.Product.Name, Unit = stock.Product.Unit, Quantity = quantity, UnitPrice = stock.Product.Price, Reason = n is null ? reason! : $"{reason}: {n}", CreatedAt = day == DateTime.Today ? DateTime.Now : day.AddHours(12), CreatedBy = Me, Status = admin ? DiscardStatus.Approved : DiscardStatus.Pending, ReviewedBy = admin ? Me : null, ReviewedAt = admin ? DateTime.Now : null }; db.Discards.Add(line);
+  await db.SaveChangesAsync(); line.SlipId = line.Id; await db.SaveChangesAsync(); // phiếu một dòng: số phiếu = Id
+  TempData["Msg"] = admin ? $"Đã ghi nhận hủy {quantity} {stock.Product.Unit} “{stock.Product.Name}”." : $"Đã gửi phiếu hủy {quantity} {stock.Product.Unit} “{stock.Product.Name}”, chờ quản trị duyệt.";
   return RedirectToAction(nameof(Discards));
  }
 }
