@@ -10,3 +10,5 @@ client/node_modules/
 CLAUDE.md
 .claude/
 docs/superpowers/
+dist/
+node_modules/
