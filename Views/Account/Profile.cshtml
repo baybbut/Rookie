@@ -1,2 +1,579 @@
 @model Rookie.Models.ProfileInput
-<section class="section account-page"><div class="eyebrow">YOUR LITTLE CORNER</div><h1>Góc nhỏ của bạn.</h1><div class="page-links"><a asp-controller="Orders" asp-action="Index">Lịch sử đơn hàng ↗</a></div><p class="notice" role="status">@TempData["Message"]</p><form method="post" class="form-card"><h2>Hồ sơ & địa chỉ</h2><p><b>Tên tài khoản:</b> @ViewBag.UserName</p><p><b>Email:</b> @ViewBag.Email</p><div asp-validation-summary="All" class="validation"></div><label>Họ tên<input asp-for="Name" autocomplete="name" required maxlength="80"/></label><label>Điện thoại<input asp-for="Phone" type="tel" autocomplete="tel" maxlength="20"/></label><label>Địa chỉ giao hàng<textarea asp-for="Address" autocomplete="street-address" maxlength="200" rows="3"></textarea></label><button class="btn">Chỉnh sửa ↗</button></form><form asp-action="Logout" method="post" class="profile-logout"><button class="btn btn-logout" type="submit">Đăng xuất</button></form></section>
+
+@{
+    var displayName = string.IsNullOrWhiteSpace(Model.Name)
+        ? "Bạn"
+        : Model.Name;
+
+    var initial = displayName.Trim().Substring(0, 1).ToUpper();
+}
+
+<section class="customer-dashboard">
+    <!-- Menu bên trái -->
+    <aside class="dashboard-sidebar">
+        <div class="customer-intro">
+            <div class="customer-avatar">@initial</div>
+            <h2>@displayName</h2>
+            <p>@ViewBag.Email</p>
+        </div>
+
+        <nav class="dashboard-menu" aria-label="Menu tài khoản">
+            <a href="#profile-info" class="selected">
+                <span aria-hidden="true">○</span>
+                Hồ sơ cá nhân
+            </a>
+
+            <a asp-controller="Orders" asp-action="Index">
+                <span aria-hidden="true">▤</span>
+                Đơn hàng của tôi
+            </a>
+
+            <a href="#shipping-address">
+                <span aria-hidden="true">⌖</span>
+                Địa chỉ nhận hàng
+            </a>
+
+            <a asp-controller="Shop" asp-action="Index">
+                <span aria-hidden="true">↗</span>
+                Tiếp tục mua bánh
+            </a>
+        </nav>
+
+        <form asp-controller="Account"
+              asp-action="Logout"
+              method="post"
+              class="dashboard-logout">
+            <button type="submit">Đăng xuất ↗</button>
+        </form>
+    </aside>
+
+    <!-- Nội dung chính -->
+    <main class="dashboard-content">
+        <header class="dashboard-heading">
+            <div>
+                <p class="dashboard-eyebrow">YOUR LITTLE CORNER</p>
+                <h1>Xin chào, @displayName!</h1>
+                <p>Quản lý thông tin và những đơn bánh của bạn tại đây.</p>
+            </div>
+
+            <a asp-controller="Orders"
+               asp-action="Index"
+               class="dashboard-order-link">
+                Xem đơn hàng ↗
+            </a>
+        </header>
+
+        @if (TempData["Message"] is string message)
+        {
+            <div class="dashboard-message" role="status">
+                @message
+            </div>
+        }
+
+        <!-- Các thẻ thông tin tổng quan -->
+        <div class="dashboard-summary">
+            <article class="summary-card summary-mint">
+                <span class="summary-label">TÊN TÀI KHOẢN</span>
+                <strong>@ViewBag.UserName</strong>
+                <p>Tài khoản Rookie của bạn</p>
+            </article>
+
+            <article class="summary-card summary-pink">
+                <span class="summary-label">EMAIL</span>
+                <strong>@ViewBag.Email</strong>
+                <p>Thông tin liên hệ tài khoản</p>
+            </article>
+
+            <article class="summary-card summary-cream">
+                <span class="summary-label">SỐ ĐIỆN THOẠI</span>
+                <strong>
+                    @(string.IsNullOrWhiteSpace(Model.Phone)
+                        ? "Chưa cập nhật"
+                        : Model.Phone)
+                </strong>
+                <p>Dùng để liên hệ khi giao bánh</p>
+            </article>
+        </div>
+
+        <div class="dashboard-panels">
+            <!-- Form chỉnh sửa -->
+            <section class="dashboard-panel" id="profile-info">
+                <div class="panel-heading">
+                    <div>
+                        <p class="dashboard-eyebrow">PERSONAL INFORMATION</p>
+                        <h2>Thông tin cá nhân</h2>
+                    </div>
+                    <span class="panel-mark" aria-hidden="true">✳</span>
+                </div>
+
+                <form asp-controller="Account"
+                      asp-action="Profile"
+                      method="post"
+                      class="dashboard-form">
+
+                    <div asp-validation-summary="All"
+                         class="validation"
+                         role="alert"></div>
+
+                    <label asp-for="Name">Họ và tên</label>
+                    <input asp-for="Name"
+                           autocomplete="name"
+                           maxlength="80"
+                           required />
+                    <span asp-validation-for="Name"
+                          class="field-error"></span>
+
+                    <label>Email</label>
+                    <div class="readonly-value">@ViewBag.Email</div>
+                    <small>Email được sử dụng khi đăng ký tài khoản.</small>
+
+                    <label asp-for="Phone">Số điện thoại</label>
+                    <input asp-for="Phone"
+                           type="tel"
+                           autocomplete="tel"
+                           maxlength="20"
+                           placeholder="Nhập số điện thoại của bạn" />
+                    <span asp-validation-for="Phone"
+                          class="field-error"></span>
+
+                    <label asp-for="Address">Địa chỉ giao hàng</label>
+                    <textarea asp-for="Address"
+                              autocomplete="street-address"
+                              maxlength="200"
+                              rows="3"
+                              placeholder="Số nhà, đường, phường/xã, tỉnh/thành"></textarea>
+                    <span asp-validation-for="Address"
+                          class="field-error"></span>
+
+                    <button type="submit" class="btn">
+                        Chỉnh sửa ↗
+                    </button>
+                </form>
+            </section>
+
+            <!-- Cột bên phải -->
+            <div class="dashboard-right">
+                <section class="dashboard-panel address-panel"
+                         id="shipping-address">
+                    <p class="dashboard-eyebrow">DELIVER TO YOU</p>
+                    <h2>Địa chỉ nhận bánh</h2>
+
+                    @if (string.IsNullOrWhiteSpace(Model.Address))
+                    {
+                        <div class="address-empty">
+                            <span aria-hidden="true">⌖</span>
+                            <p>Bạn chưa có địa chỉ nhận hàng.</p>
+                            <a href="#profile-info">
+                                Bổ sung thông tin ↗
+                            </a>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="address-details">
+                            <strong>@displayName</strong>
+                            <p>
+                                @(string.IsNullOrWhiteSpace(Model.Phone)
+                                    ? "Chưa cập nhật số điện thoại"
+                                    : Model.Phone)
+                            </p>
+                            <p class="address-text">@Model.Address</p>
+                            <a href="#profile-info">
+                                Chỉnh sửa địa chỉ ↗
+                            </a>
+                        </div>
+                    }
+                </section>
+
+                <section class="dashboard-panel orders-shortcut">
+                    <p class="dashboard-eyebrow">YOUR SWEET MEMORIES</p>
+                    <h2>Những hộp bánh của bạn</h2>
+                    <p>
+                        Xem lịch sử mua bánh, thông tin giao hàng
+                        và trạng thái từng đơn.
+                    </p>
+                    <a asp-controller="Orders"
+                       asp-action="Index"
+                       class="dashboard-order-link">
+                        Lịch sử đơn hàng ↗
+                    </a>
+                </section>
+            </div>
+        </div>
+    </main>
+</section>
+
+<style>
+    .customer-dashboard {
+        --dashboard-border: #e3decf;
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr);
+        gap: 32px;
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 55px 5%;
+        align-items: start;
+    }
+
+    .dashboard-sidebar {
+        background: #f2ebdf;
+        border: 1px solid var(--dashboard-border);
+        border-radius: 16px;
+        padding: 28px 20px;
+        position: sticky;
+        top: 24px;
+    }
+
+    .customer-intro {
+        text-align: center;
+        padding-bottom: 26px;
+        border-bottom: 1px solid var(--dashboard-border);
+    }
+
+    .customer-avatar {
+        width: 76px;
+        height: 76px;
+        margin: 0 auto 16px;
+        display: grid;
+        place-items: center;
+        background: #c7dbc9;
+        color: #344a36;
+        border-radius: 50%;
+        font-size: 30px;
+        font-weight: 600;
+    }
+
+    .customer-intro h2 {
+        font-size: 23px;
+        margin: 0 0 8px;
+        overflow-wrap: anywhere;
+    }
+
+    .customer-intro p {
+        font-size: 11px;
+        color: #74786b;
+        overflow-wrap: anywhere;
+        line-height: 1.6;
+    }
+
+    .dashboard-menu {
+        display: grid;
+        gap: 8px;
+        margin: 24px 0;
+    }
+
+    .dashboard-menu a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 13px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        transition: background .2s;
+    }
+
+    .dashboard-menu a span {
+        width: 20px;
+        text-align: center;
+        font-size: 19px;
+    }
+
+    .dashboard-menu a:hover,
+    .dashboard-menu a.selected {
+        background: #dfe6d4;
+        color: #304332;
+    }
+
+    .dashboard-logout {
+        border-top: 1px solid var(--dashboard-border);
+        padding-top: 20px;
+    }
+
+    .dashboard-logout button {
+        width: 100%;
+        background: transparent;
+        border: 1px solid #aeb39f;
+        border-radius: 7px;
+        padding: 12px;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .dashboard-logout button:hover {
+        background: #252a22;
+        color: #fffdf4;
+    }
+
+    .dashboard-content {
+        min-width: 0;
+    }
+
+    /* Dùng class riêng để không bị CSS header toàn website ảnh hưởng. */
+    .dashboard-content .dashboard-heading {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 0;
+        margin-bottom: 28px;
+        background: transparent;
+    }
+
+    .dashboard-eyebrow {
+        font-size: 9px;
+        font-weight: 600;
+        letter-spacing: 2px;
+        margin-bottom: 10px;
+    }
+
+    .dashboard-heading h1 {
+        font-size: clamp(30px, 3.5vw, 44px);
+        line-height: 1.2;
+        letter-spacing: -1px;
+        margin: 0 0 12px;
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-heading > div > p:last-child {
+        font-size: 12px;
+        line-height: 1.8;
+        color: #74786b;
+    }
+
+    .dashboard-order-link {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 500;
+        border-bottom: 1px solid currentColor;
+        padding-bottom: 5px;
+    }
+
+    .dashboard-message {
+        background: #e2ecd9;
+        border: 1px solid #bfd0b3;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin-bottom: 24px;
+        font-size: 12px;
+        color: #3e6143;
+    }
+
+    .dashboard-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+
+    .summary-card {
+        padding: 23px 20px;
+        border-radius: 12px;
+        border: 1px solid #252a2210;
+        min-width: 0;
+    }
+
+    .summary-mint { background: #e1ead9; }
+    .summary-pink { background: #f1dce0; }
+    .summary-cream { background: #eee5d6; }
+
+    .summary-label {
+        display: block;
+        font-size: 9px;
+        letter-spacing: 1.3px;
+        margin-bottom: 15px;
+    }
+
+    .summary-card strong {
+        display: block;
+        font-size: 15px;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+
+    .summary-card p {
+        margin-top: 10px;
+        font-size: 10px;
+        line-height: 1.7;
+        color: #69705f;
+    }
+
+    .dashboard-panels {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+        gap: 24px;
+        align-items: start;
+    }
+
+    .dashboard-panel {
+        padding: 26px;
+        border: 1px solid var(--dashboard-border);
+        border-radius: 12px;
+        background: #fffdf6;
+        min-width: 0;
+        scroll-margin-top: 24px;
+    }
+
+    .dashboard-panel h2 {
+        font-size: 25px;
+        letter-spacing: -.5px;
+        margin: 0 0 20px;
+    }
+
+    .panel-heading {
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+    }
+
+    .panel-mark {
+        font-size: 32px;
+        color: #8b9f73;
+    }
+
+    .dashboard-form label {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+        margin: 18px 0 8px;
+    }
+
+    .dashboard-form input,
+    .dashboard-form textarea,
+    .readonly-value {
+        display: block;
+        width: 100%;
+        padding: 13px 14px;
+        background: #fcfaf2;
+        border: 1px solid #d9d8c9;
+        border-radius: 6px;
+        color: inherit;
+        font: inherit;
+        font-size: 12px;
+        line-height: 1.7;
+        box-sizing: border-box;
+    }
+
+    .dashboard-form textarea {
+        resize: vertical;
+    }
+
+    .readonly-value {
+        color: #74786b;
+        overflow-wrap: anywhere;
+    }
+
+    .dashboard-form small {
+        display: block;
+        margin-top: 7px;
+        font-size: 10px;
+        color: #74786b;
+        line-height: 1.7;
+    }
+
+    .dashboard-form .btn {
+        margin-top: 24px;
+    }
+
+    .field-error {
+        display: block;
+        color: #a13e3e;
+        font-size: 11px;
+        margin-top: 5px;
+    }
+
+    .dashboard-right {
+        display: grid;
+        gap: 24px;
+        min-width: 0;
+    }
+
+    .address-panel {
+        background: #f3eee3;
+    }
+
+    .address-empty {
+        text-align: center;
+        padding: 15px 0;
+    }
+
+    .address-empty > span {
+        font-size: 38px;
+        color: #879375;
+    }
+
+    .address-empty p,
+    .address-details p,
+    .orders-shortcut > p:not(.dashboard-eyebrow) {
+        font-size: 12px;
+        line-height: 1.9;
+        margin: 12px 0;
+        color: #707565;
+        overflow-wrap: anywhere;
+    }
+
+    .address-details strong {
+        font-size: 14px;
+    }
+
+    .address-text {
+        white-space: pre-line;
+    }
+
+    .address-panel a {
+        display: inline-block;
+        font-size: 11px;
+        text-decoration: underline;
+        text-underline-offset: 4px;
+        margin-top: 10px;
+    }
+
+    .orders-shortcut {
+        background: #e8eddc;
+    }
+
+    .orders-shortcut .dashboard-order-link {
+        margin-top: 15px;
+    }
+
+    @@media (max-width: 1100px) {
+        .customer-dashboard {
+            grid-template-columns: 210px minmax(0, 1fr);
+            gap: 22px;
+        }
+
+        .dashboard-panels {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 760px) {
+        .customer-dashboard {
+            grid-template-columns: 1fr;
+            padding: 30px 5%;
+        }
+
+        .dashboard-sidebar {
+            position: static;
+        }
+
+        .dashboard-menu {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .dashboard-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .dashboard-panel {
+            padding: 22px;
+        }
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .dashboard-menu a {
+            transition: none;
+        }
+    }
+</style>
