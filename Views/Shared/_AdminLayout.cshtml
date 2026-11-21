@@ -14,7 +14,7 @@
  <a href="/admin" class="logo" aria-label="Rookie admin">rookie<span>✳</span><small>ADMIN · QUẢN TRỊ TIỆM BÁNH</small></a>
  <nav aria-label="Chức năng quản trị">
   <a class="@Cls("dashboard")" href="/admin" title="Trang chủ"><span>Trang chủ</span></a>
-  <a class="@Cls("categories")" href="/admin/categories" title="Quản lý danh mục"><span>Quản lý danh mục</span></a>
+  @if (isAdmin) {<a class="@Cls("categories")" href="/admin/categories" title="Quản lý danh mục"><span>Quản lý danh mục</span></a>}
   <a class="@Cls("products")" href="/admin/products" title="Quản lý sản phẩm"><span>Quản lý sản phẩm</span></a>
   <a class="@Cls("customers")" href="/admin/customers" title="Quản lý khách hàng"><span>Quản lý khách hàng</span></a>
   <a class="@Cls("orders")" href="/admin/orders" title="Quản lý đơn hàng"><span>Quản lý đơn hàng</span></a>

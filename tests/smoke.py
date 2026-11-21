@@ -106,6 +106,9 @@ status,_,_=other.post('/Account/Register',{'UserName':f'other_{suffix}','Name':'
 assert status==200
 assert other.request('/Orders/Details/'+order_id)[0]==404
 assert other.request('/Orders/Success/'+order_id)[0]==404
+assert other.post('/Orders/Cancel/'+order_id,{},'/Orders')[0]==404, 'Cannot cancel another customer order'
+status,body,_=user.post('/Orders/Cancel/'+order_id,{},'/Orders/Details/'+order_id)
+assert status==200 and 'Đã hủy' in body and 'Hủy đơn</button>' not in body, 'Customer cancels own new order'
 status,_,_=user.post('/Account/Logout',{},'/Account/Profile')
 assert status==200
 status,body,_=user.post('/Account/Login',{'Email':email,'Password':'wrong-password'})

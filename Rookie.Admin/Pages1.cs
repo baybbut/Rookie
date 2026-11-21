@@ -64,14 +64,30 @@ class ProductsPage : Page {
  readonly TextBox code, name; readonly ComboBox cat, status;
  public ProductsPage() : base("Products", "Quản lý sản phẩm") {
   code = Add("Mã bánh", new TextBox()); name = Add("Tên bánh", new TextBox(), 200); cat = Add("Danh mục", Combo("Tất cả", Cats())); status = Add("Trạng thái", Combo("Tất cả", ProductStatus.Options.Select(o => o.Label))); ClearButton();
-  G.Setup("Mã|0.6", "Tên bánh|3", "Danh mục|1", ">Giá|1", "Đơn vị|0.6", "Trạng thái|1.1");
-  Act("Thêm bánh mới", () => Edit(null), primary: true); Act("Sửa", () => { if (G.Pick<Product>() is { } p) Edit(p); }); Act("Xóa", Delete, danger: true); G.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && G.Pick<Product>() is { } p) { Edit(p); Reload(); } };
+  G.Setup("Mã|0.6", "Tên bánh|2.6", "Danh mục|1", ">Giá nhập|0.9", ">Lãi|0.5", ">Giá bán|0.9", "Đơn vị|0.6", "Trạng thái|1.1", "Trang bán|0.8");
+  Act("Thêm bánh mới", () => Edit(null), primary: true); Act("Xem", View, reload: false); Act("Sửa", () => { if (G.Pick<Product>() is { } p) Edit(p); }); Act("Ẩn / hiện", Hide); Act("Xóa", Delete, danger: true);
+  G.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) View(); };
+ }
+ // Xem thông tin bánh (chỉ xem): ảnh, giá, lợi nhuận, tồn kho.
+ void View() {
+  if (G.Pick<Product>() is not { } p) return; var s = Api.Get<List<StockRow>>("api/admin/stock").FirstOrDefault(x => x.Product.Id == p.Id);
+  var quotes = Api.Get<List<SupplierPriceRow>>($"api/admin/supplier-prices?productId={p.Id}");
+  var g = new Grid().Setup("Xưởng|2", ">Giá nhập|1", "|1"); g.Load(quotes, q => [q.Supplier, Fmt.Vnd(q.Price), q.IsMain ? "Xưởng chính" : q.SupplierActive ? "" : "Ngừng hợp tác"], (r, q) => { if (q.IsMain) r.DefaultCellStyle.Font = Ui.Bold; });
+  Viewer.Show(this, $"Bánh {p.Code} — {p.Name}", [("Mã bánh", p.Code), ("Tên bánh", p.Name), ("Mô tả", p.Description), ("Danh mục", p.Category), ("Đơn vị bán", p.Unit),
+   ("Xưởng chính", quotes.FirstOrDefault(q => q.IsMain)?.Supplier), ("Giá nhập", Fmt.Vnd(p.CostPrice)), ("Tỉ lệ lợi nhuận", $"{p.Margin:0.##} %"), ("Giá bán", Fmt.Vnd(p.Price)), ("Lãi mỗi " + p.Unit, Fmt.Vnd(p.Price - p.CostPrice)),
+   ("Nhãn", Label(p)), ("Trang bán bánh", p.IsHidden ? "Đang ẩn" : "Đang hiển thị"), ("Tồn kho", s is null ? null : $"{s.Left} {p.Unit} (đã nhập {s.In} · đã bán {s.Sold} · đã hủy {s.Wasted})")], Viewer.ImageUrl(p), g);
+ }
+ void Hide() {
+  if (G.Pick<Product>() is not { } p) return;
+  if (!Ui.Ask(p.IsHidden ? $"Hiện lại “{p.Name}” trên trang bán bánh?" : $"Ẩn “{p.Name}” khỏi trang bán bánh?\nKhách sẽ không thấy và không đặt được bánh này; đơn, phiếu cũ vẫn giữ nguyên.")) return;
+  var x = Api.Post<Product>($"api/admin/products/{p.Id}/hide"); Note(x.IsHidden ? $"Đã ẩn “{x.Name}”." : $"Đã hiện lại “{x.Name}”.");
  }
  static List<string> Cats() => Api.Get<List<CategoryRow>>("api/admin/categories").Select(c => c.Name).ToList();
  public override void Reload() {
   var st = status.SelectedIndex <= 0 ? null : ProductStatus.Options[status.SelectedIndex - 1].Key; var sel = Sel(cat);
   var list = Api.Get<List<Product>>("api/admin/products").Where(p => Svc.Has(p.Code, code.Text) && Svc.Has(p.Name, name.Text) && (sel is null || p.Category == sel) && (st is null || ProductStatus.Key(p) == st)).ToList();
-  G.Load(list, p => [p.Code, $"{p.Name}  —  {p.Description}", p.Category, Fmt.Vnd(p.Price), p.Unit, Label(p)]); Note($"{list.Count} sản phẩm");
+  G.Load(list, p => [p.Code, $"{p.Name}  —  {p.Description}", p.Category, Fmt.Vnd(p.CostPrice), $"{p.Margin:0.##}%", Fmt.Vnd(p.Price), p.Unit, Label(p), p.IsHidden ? "Đang ẩn" : "Hiển thị"],
+   (r, p) => { if (p.IsHidden) r.DefaultCellStyle.ForeColor = Ui.Muted; }); Note($"{list.Count} sản phẩm · {list.Count(p => p.IsHidden)} đang ẩn");
  }
  static string Label(Product p) => p.IsBestSeller && p.IsNew ? "Bán chạy · Mới" : p.IsBestSeller ? "Bán chạy nhất" : p.IsNew ? "Mới ra lò" : "Bình thường";
  void Edit(Product? cur) {
@@ -79,14 +95,44 @@ class ProductsPage : Page {
   using var f = new FieldForm(isNew ? "Thêm bánh mới" : $"Sửa bánh — {p.Name}", isNew ? "Thêm bánh" : "Lưu thay đổi", 340);
   var tCode = f.Add("Mã bánh", FieldForm.Txt(p.Code, 20)); var tName = f.Add("Tên bánh", FieldForm.Txt(p.Name, 80)); var tDesc = f.Add("Mô tả ngắn", FieldForm.Txt(p.Description, 200));
   var cCat = f.Add("Danh mục", FieldForm.Combo(Cats().Cast<object>(), p.Category)); var cSt = f.Add("Trạng thái", FieldForm.Combo(ProductStatus.Options.Select(o => (object)o.Label), ProductStatus.Options.First(o => o.Key == ProductStatus.Key(p)).Label));
-  var nPrice = f.Add("Giá (₫)", FieldForm.Num(p.Price == 0 ? 50000 : p.Price, 1000, 100000000, 1000)); var cUnit = f.Add("Đơn vị bán", FieldForm.Combo(ProductStatus.Units, p.Unit));
-  var tImg = f.Add("Mã ảnh Unsplash", FieldForm.Txt(p.Image, 120)); f.AddWide(Ui.Lbl("Để trống mã bánh để tự tạo (VD: SP007). Mã ảnh là phần ID sau images.unsplash.com/, VD photo-1464305795204-6f5bbfc7fb81.", Ui.Small, Ui.Muted));
+  // Giá nhập cố định, CHỈ HIỂN THỊ (lấy từ danh sách bánh + bảng giá của xưởng).
+  // Bánh mới: chọn xưởng → chọn bánh trong danh sách của xưởng (bánh tiệm chưa bán). Sửa bánh: chỉ chọn xưởng chính trong số xưởng đã có giá.
+  var quotes = Api.Get<List<SupplierPriceRow>>(isNew ? "api/admin/supplier-prices?unlinked=true" : $"api/admin/supplier-prices?productId={p.Id}").Where(q => !isNew || q.SupplierActive).ToList();
+  var cSup = f.Add(isNew ? "Xưởng cung cấp" : "Xưởng chính", FieldForm.Combo(isNew ? quotes.Select(q => (object)q.Supplier).Distinct() : quotes.Select(q => (object)$"{q.Supplier} — {Fmt.Vnd(q.Price)}"), isNew ? null : quotes.Where(q => q.IsMain).Select(q => $"{q.Supplier} — {Fmt.Vnd(q.Price)}").FirstOrDefault()));
+  var cItem = isNew ? f.Add("Bánh của xưởng", FieldForm.Combo(Array.Empty<object>())) : null; List<SupplierPriceRow> items = [];
+  var lCost = f.Add("Giá nhập", Ui.Lbl("", Ui.Bold));
+  var nMargin = f.Add("Tỉ lệ lợi nhuận (%)", FieldForm.Num(isNew ? 50 : p.Margin, 0, 1000));
+  var lPrice = f.Add("Giá bán", Ui.Lbl("", Ui.Bold));
+  var cUnit = f.Add("Đơn vị bán", FieldForm.Combo(ProductStatus.Units, p.Unit));
+  SupplierPriceRow? Pick() => cItem is not null ? (cItem.SelectedIndex >= 0 ? items[cItem.SelectedIndex] : null) : cSup.SelectedIndex >= 0 ? quotes[cSup.SelectedIndex] : null;
+  decimal Cost() => Pick()?.Price ?? (isNew ? 0 : p.CostPrice);
+  void Price() {
+   lCost.Text = isNew && Pick() is null ? (quotes.Count == 0 ? "Chưa có bánh nào trong danh sách của xưởng" : "Chọn bánh của xưởng") : $"{Fmt.Vnd(Cost())}  (giá xưởng, cố định)";
+   lPrice.Text = Pick() is null && isNew ? "—" : $"{Fmt.Vnd(ProductStatus.PriceOf(Cost(), nMargin.Value))}   (= giá nhập × (1 + tỉ lệ), làm tròn 1.000 ₫)";
+  }
+  // Chọn bánh của xưởng: điền sẵn tên và đơn vị theo xưởng (tên vẫn sửa được).
+  var autoName = "";
+  void Items() { items = quotes.Where(q => q.Supplier == (string?)cSup.SelectedItem).ToList(); cItem!.Items.Clear(); cItem.Items.AddRange(items.Select(q => (object)$"{q.Product} ({q.Unit}) — {Fmt.Vnd(q.Price)}").ToArray()); if (items.Count > 0) cItem.SelectedIndex = 0; Price(); }
+  if (cItem is not null) {
+   cItem.SelectedIndexChanged += (_, _) => { if (Pick() is { } q) { if (tName.Text.Trim() == "" || tName.Text == autoName) tName.Text = autoName = q.Product; cUnit.SelectedItem = q.Unit; } Price(); };
+   cSup.SelectedIndexChanged += (_, _) => Items(); Items();
+  } else cSup.SelectedIndexChanged += (_, _) => Price();
+  nMargin.ValueChanged += (_, _) => Price(); Price();
+  var tImg = f.Add("Ảnh bánh", FieldForm.Txt(p.Image, 120));
+  f.Add("", Ui.Btn("Chọn ảnh từ máy…", () => {
+   using var dlg = new OpenFileDialog { Title = "Chọn ảnh bánh", Filter = "Ảnh (*.jpg;*.jpeg;*.png;*.webp;*.gif)|*.jpg;*.jpeg;*.png;*.webp;*.gif" };
+   if (dlg.ShowDialog() != DialogResult.OK) return;
+   try { if (Ui.Try(() => tImg.Text = Api.Upload(dlg.FileName)) is { } e) Ui.Err(e); }
+   catch (IOException e) { Ui.Err($"Không đọc được file ảnh: {e.Message}"); }
+  }));
+  f.AddWide(Ui.Lbl("Để trống mã bánh để tự tạo (VD: SP007). Ảnh: bấm “Chọn ảnh từ máy…” (JPG/PNG/WEBP/GIF, tối đa 5 MB) để tải lên, hoặc nhập mã ảnh Unsplash (VD photo-1464305795204-6f5bbfc7fb81).", Ui.Small, Ui.Muted));
   f.Check = () => {
    if (tName.Text.Trim() == "") return "Hãy nhập tên bánh."; if (tDesc.Text.Trim() == "") return "Hãy nhập mô tả ngắn."; if (cCat.SelectedItem is null) return "Hãy chọn danh mục."; if (tImg.Text.Trim() == "") return "Hãy nhập mã ảnh.";
-   // Mã trống thì server tự sinh SPxxx; trùng mã, sai danh mục/đơn vị do server kiểm tra.
-   var body = new Product { Code = tCode.Text.Trim(), Name = tName.Text.Trim(), Description = tDesc.Text.Trim(), Category = (string)cCat.SelectedItem!, Price = nPrice.Value, Unit = (string)cUnit.SelectedItem!, Image = tImg.Text.Trim() };
+   if (isNew && Pick() is null) return "Hãy chọn bánh trong danh sách của xưởng (thêm ở Quản lý kho → Nhà cung cấp → Bảng giá).";
+   // Mã trống thì server tự sinh SPxxx; trùng mã, sai danh mục/đơn vị do server kiểm tra. Giá nhập server lấy từ bảng giá xưởng, giá bán server tính lại.
+   var body = new Product { Code = tCode.Text.Trim(), Name = tName.Text.Trim(), Description = tDesc.Text.Trim(), Category = (string)cCat.SelectedItem!, SupplierId = Pick()?.SupplierId, CostPrice = Cost(), Margin = nMargin.Value, Price = Math.Max(1000, ProductStatus.PriceOf(Cost(), nMargin.Value)), Unit = (string)cUnit.SelectedItem!, Image = tImg.Text.Trim() };
    ProductStatus.Apply(body, ProductStatus.Options[cSt.SelectedIndex].Key);
-   return Ui.Try(() => saved = isNew ? Api.Post<Product>("api/admin/products", body) : Api.Put<Product>($"api/admin/products/{p.Id}", body));
+   return Ui.Try(() => saved = isNew ? Api.Post<Product>($"api/admin/products?priceId={Pick()!.Id}", body) : Api.Put<Product>($"api/admin/products/{p.Id}", body));
   };
   if (f.ShowDialog() == DialogResult.OK && saved is not null) Note($"Đã lưu “{saved.Name}” (mã {saved.Code}).");
  }

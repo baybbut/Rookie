@@ -13,6 +13,18 @@ public static class DemoData {
 
  public static void Seed(ShopDbContext db) {
   if (!db.Suppliers.Any()) { db.Suppliers.AddRange(new Supplier { Name = "Xưởng bánh Hòa Bình", Phone = "02838000001", Address = "12 Nguyễn Trãi, Q.5, TP.HCM" }, new Supplier { Name = "Xưởng bánh Bơ Vàng", Phone = "02838000002", Address = "45 Lê Văn Việt, TP. Thủ Đức" }, new Supplier { Name = "Xưởng bánh Sài Gòn Xưa", Phone = "02838000003", Address = "8 Hoàng Hoa Thám, Q. Bình Thạnh" }); db.SaveChanges(); }
+  // Bảng giá xưởng mẫu: xưởng đầu tiên là xưởng chính (đúng giá nhập của bánh), hai xưởng còn lại báo giá +5% / −5%.
+  if (!db.SupplierPrices.Any()) {
+   var sups = db.Suppliers.OrderBy(s => s.Id).ToList(); decimal[] factor = [1m, 1.05m, 0.95m];
+   foreach (var p in db.Products.ToList()) {
+    for (var i = 0; i < sups.Count; i++) db.SupplierPrices.Add(new SupplierPrice { SupplierId = sups[i].Id, ProductId = p.Id, Name = p.Name, Unit = p.Unit, Price = Math.Round(p.CostPrice * factor[i % 3] / 1000) * 1000 });
+    if (sups.Count > 0) p.SupplierId ??= sups[0].Id;
+   }
+   // Vài bánh xưởng làm mà tiệm chưa bán: chọn được khi "Thêm bánh mới".
+   if (sups.Count >= 3) db.SupplierPrices.AddRange(new SupplierPrice { SupplierId = sups[0].Id, Name = "Bánh su kem vani", Unit = "hộp", Price = 40000 }, new SupplierPrice { SupplierId = sups[0].Id, Name = "Bông lan trứng muối", Unit = "chiếc", Price = 30000 },
+    new SupplierPrice { SupplierId = sups[1].Id, Name = "Mousse chanh dây", Unit = "chiếc", Price = 160000 }, new SupplierPrice { SupplierId = sups[2].Id, Name = "Bánh bò nướng lá dứa", Unit = "khay", Price = 50000 });
+   db.SaveChanges();
+  }
   if (db.Customers.Any() || db.Orders.Any() || db.Purchases.Any()) return;
   var rnd = new Random(42);
   var products = db.Products.AsNoTracking().ToList();
@@ -31,19 +43,24 @@ public static class DemoData {
     foreach (var p in products.OrderBy(_ => rnd.Next()).Take(rnd.Next(1, 4))) o.Items.Add(new OrderItem { ProductId = p.Id, ProductName = p.Name, UnitPrice = p.Price, Quantity = rnd.Next(1, 4) });
     o.Status = d > 2 ? (rnd.Next(10) == 0 ? OrderStatus.Cancelled : OrderStatus.Done) : OrderStatus.All[rnd.Next(5)];
     if (o.Status != OrderStatus.New && o.Status != OrderStatus.Cancelled) (o.ConfirmedBy, o.ConfirmedAt) = (staff[rnd.Next(staff.Count)], o.CreatedAt.AddMinutes(10 + rnd.Next(50)));
+    // Đơn đã hoàn thành coi như đã thu tiền khi giao.
+    if (o.Status == OrderStatus.Done) (o.PaymentStatus, o.PaymentMethod, o.PaymentRecordedBy, o.PaymentRecordedAt, o.PaymentConfirmedBy, o.PaymentConfirmedAt) = (PaymentStatus.Paid, PaymentStatus.Methods[0], o.ConfirmedBy, o.CreatedAt.AddHours(3), staff[0], o.CreatedAt.AddHours(4));
     db.Orders.Add(o);
    }
   }
   // Phiếu nhập: các xưởng bánh giao bánh thành phẩm; 4 phiếu đã nhập kho và 1 phiếu đang chờ xác nhận.
-  var suppliers = db.Suppliers.AsNoTracking().Select(s => s.Name).ToList();
+  var suppliers = db.Suppliers.AsNoTracking().OrderBy(s => s.Id).ToList(); var prices = db.SupplierPrices.AsNoTracking().ToList();
   for (var i = 0; i < 5; i++) {
-   var pu = new Purchase { Supplier = suppliers[i % suppliers.Count], CreatedAt = DateTime.Today.AddDays(i == 4 ? 0 : -i * 7 - 1), CreatedBy = staff[0] };
-   foreach (var p in products) pu.Items.Add(new PurchaseItem { ProductId = p.Id, ItemName = p.Name, Unit = p.Unit, Quantity = rnd.Next(15, 31), UnitCost = Math.Round(p.Price * 0.55m / 1000) * 1000 });
+   var sup = suppliers[i % suppliers.Count];
+   var pu = new Purchase { Supplier = sup.Name, CreatedAt = DateTime.Today.AddDays(i == 4 ? 0 : -i * 7 - 1), CreatedBy = staff[0] };
+   foreach (var p in products) pu.Items.Add(new PurchaseItem { ProductId = p.Id, ItemName = p.Name, Unit = p.Unit, Quantity = rnd.Next(15, 31), UnitCost = prices.FirstOrDefault(x => x.SupplierId == sup.Id && x.ProductId == p.Id)?.Price ?? p.CostPrice });
    if (i < 4) (pu.Status, pu.ReceivedAt, pu.ReceivedBy) = (PurchaseStatus.Received, pu.CreatedAt.AddHours(15), staff[0]);
    db.Purchases.Add(pu);
   }
   string[] reasons = ["Hết hạn", "Hỏng / rơi vỡ", "Làm lỗi", "Ế cuối ngày"];
-  for (var d = 0; d < 9; d++) { var p = products[rnd.Next(products.Count)]; db.Discards.Add(new Discard { ProductId = p.Id, ProductName = p.Name, Unit = p.Unit, Quantity = rnd.Next(1, 4), UnitPrice = p.Price, Reason = reasons[rnd.Next(reasons.Length)], CreatedAt = DateTime.Today.AddDays(-d * 3).AddHours(18), CreatedBy = staff[rnd.Next(staff.Count)] }); }
+  for (var d = 0; d < 9; d++) { var p = products[rnd.Next(products.Count)]; db.Discards.Add(new Discard { ProductId = p.Id, ProductName = p.Name, Unit = p.Unit, Quantity = rnd.Next(1, 4), UnitPrice = p.Price, Reason = reasons[rnd.Next(reasons.Length)], CreatedAt = DateTime.Today.AddDays(-d * 3).AddHours(18), CreatedBy = staff[rnd.Next(staff.Count)], Status = d == 0 ? DiscardStatus.Pending : DiscardStatus.Approved, ReviewedBy = d == 0 ? null : staff[0], ReviewedAt = d == 0 ? null : DateTime.Today.AddDays(-d * 3).AddHours(19) }); }
+  db.SaveChanges();
+  foreach (var x in db.Discards.Where(x => x.SlipId == 0)) x.SlipId = x.Id; // phiếu mẫu: mỗi phiếu một dòng
   db.SaveChanges();
  }
 }

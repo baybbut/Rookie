@@ -21,7 +21,7 @@ static class Program {
   try { LoginForm.SignIn(Environment.GetEnvironmentVariable("ROOKIE_USER") ?? "", Environment.GetEnvironmentVariable("ROOKIE_PASS") ?? ""); }
   catch (ApiException e) { Console.Error.WriteLine("Đăng nhập thất bại: " + e.Message); Environment.ExitCode = 1; return; }
   Directory.CreateDirectory(dir); using var m = new MainForm(); m.Show();
-  foreach (var k in new[] { "dash", "cats", "prods", "custs", "orders", "stock", "staff", "reports" }.Where(k => k != "staff" || Session.IsAdmin)) {
+  foreach (var k in new[] { "dash", "cats", "prods", "custs", "orders", "payments", "stock", "staff", "reports" }.Where(k => k is not ("staff" or "cats") || Session.IsAdmin)) {
    m.Go(k); Application.DoEvents(); Thread.Sleep(300); Application.DoEvents();
    using var bmp = new Bitmap(m.Width, m.Height); m.DrawToBitmap(bmp, new Rectangle(0, 0, m.Width, m.Height)); bmp.Save(Path.Combine(dir, $"{k}.png"));
   }
@@ -59,7 +59,10 @@ class MainForm : Form {
  public MainForm() {
   Text = "Rookie Admin — Quản trị tiệm bánh"; Font = Ui.Base; BackColor = Ui.Cream; StartPosition = FormStartPosition.CenterScreen; Size = new Size(1280, 800); MinimumSize = new Size(1000, 640);
   var side = new Panel { Dock = DockStyle.Left, Width = 250, BackColor = Ui.Side, Padding = new Padding(14, 18, 14, 14) };
-  var items = new List<(string Key, string Text)> { ("dash", "Trang chủ"), ("cats", "Quản lý danh mục"), ("prods", "Quản lý sản phẩm"), ("custs", "Quản lý khách hàng"), ("orders", "Quản lý đơn hàng"), ("stock", "Quản lý kho") };
+  // Danh mục và nhân sự chỉ dành cho "Quản trị" (server cũng chặn API sửa danh mục / nhân sự với "Nhân viên").
+  var items = new List<(string Key, string Text)> { ("dash", "Trang chủ") };
+  if (Session.IsAdmin) items.Add(("cats", "Quản lý danh mục"));
+  items.AddRange([("prods", "Quản lý sản phẩm"), ("custs", "Quản lý khách hàng"), ("orders", "Quản lý đơn hàng"), ("payments", "Quản lý thanh toán"), ("stock", "Quản lý kho")]);
   if (Session.IsAdmin) items.Add(("staff", "Quản lý nhân sự")); items.Add(("reports", "Báo cáo & thống kê"));
   var menu = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0, 12, 0, 0) };
   foreach (var (k, t) in items) { var b = new Button { Text = t, Width = 220, Height = 42, FlatStyle = FlatStyle.Flat, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0), Font = Ui.Base, Cursor = Cursors.Hand, UseMnemonic = false, TabStop = false, Margin = new Padding(0, 0, 0, 3), UseVisualStyleBackColor = false }; b.FlatAppearance.BorderSize = 0; var key = k; b.Click += (_, _) => Go(key); nav[k] = b; menu.Controls.Add(b); }
@@ -78,7 +81,7 @@ class MainForm : Form {
   // Server từ chối token (hết hạn, bị khóa, bị đổi vai trò): đóng cửa sổ chính và quay về màn đăng nhập.
   Action expired = () => BeginInvoke(() => { LoggedOut = true; Close(); }); Api.Expired += expired; FormClosed += (_, _) => Api.Expired -= expired;
  }
- Page Make(string key) => key switch { "dash" => new DashboardPage(), "cats" => new CategoriesPage(), "prods" => new ProductsPage(), "custs" => new CustomersPage(this), "orders" => new OrdersPage(), "stock" => new WarehousePage(), "staff" => new StaffPage(), _ => new ReportsPage() };
+ Page Make(string key) => key switch { "dash" => new DashboardPage(), "cats" => new CategoriesPage(), "prods" => new ProductsPage(), "custs" => new CustomersPage(this), "orders" => new OrdersPage(), "payments" => new PaymentsPage(), "stock" => new WarehousePage(), "staff" => new StaffPage(), _ => new ReportsPage() };
  public Page Go(string key) {
   if (!pages.TryGetValue(key, out var p)) { p = pages[key] = Make(key); content.Controls.Add(p); }
   foreach (var (k, b) in nav) { var on = k == key; b.BackColor = on ? Ui.Ink : Ui.Side; b.ForeColor = on ? Ui.Cream : Ui.Ink; }
